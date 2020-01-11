@@ -143,14 +143,21 @@ impl Problem {
         lines
     }
 
-    pub fn generate_objects(&self) -> Vec<(i32, i32, i32)> {
-        let mut objects: Vec<(i32, i32, i32)> = Vec::with_capacity((self.num_customers + self.num_depots) as usize);
+    pub fn get_customers(&self) -> HashMap<i32, (i32, i32)> {
+        let mut hashmap = HashMap::new();
         for customer in self.customers.iter() {
-            objects.push((customer.number, customer.pos.x, customer.pos.y));
-        };
+            hashmap.insert(customer.number, (customer.pos.x, customer.pos.y));
+        }
+        return hashmap;
+    }
+
+    pub fn get_depots(&self) -> HashMap<i32, (i32, i32)> {
+        let mut hashmap = HashMap::new();
         for depot in self.depots.iter() {
-            objects.push((depot.number, depot.pos.x, depot.pos.y));
-        };
+            hashmap.insert(depot.number, (depot.pos.x, depot.pos.y));
+        }
+        return hashmap;
+    }
 
     pub fn get_boundaries(&self) -> (i32, i32, i32, i32) {
         let mut min_x = i32::MAX;
@@ -199,12 +206,15 @@ impl GeneticProgram {
     #[new]
     fn new(obj: &PyRawObject, path: String) {
         let problem = Problem::new(path);
-        problem.print_path();
-        obj.init(
-            GeneticProgram {
-                problem,
-            }
-        );
+        obj.init(GeneticProgram { problem });
+    }
+
+    fn get_customers(&self) -> PyResult<HashMap<i32, (i32, i32)>> {
+        Ok(self.problem.get_customers())
+    }
+
+    fn get_depots(&self) -> PyResult<HashMap<i32, (i32, i32)>> {
+        Ok(self.problem.get_depots())
     }
 
     fn get_boundaries(&self) -> PyResult<(i32, i32, i32, i32)> {
