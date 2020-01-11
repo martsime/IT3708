@@ -152,7 +152,45 @@ impl Problem {
             objects.push((depot.number, depot.pos.x, depot.pos.y));
         };
 
-        return objects;
+    pub fn get_boundaries(&self) -> (i32, i32, i32, i32) {
+        let mut min_x = i32::MAX;
+        let mut min_y = i32::MAX;
+        let mut max_x = i32::MIN;
+        let mut max_y = i32::MIN;
+
+        for customer in self.customers.iter() {
+            let (x, y) = (customer.pos.x, customer.pos.y);
+            if x < min_x {
+                min_x = x;
+            }
+            if x > max_x {
+                max_x = x;
+            }
+            if y < min_y {
+                min_y = y;
+            }
+            if y > max_y {
+                max_y = y;
+            }
+        }
+
+        for depot in self.depots.iter() {
+            let (x, y) = (depot.pos.x, depot.pos.y);
+            if x < min_x {
+                min_x = x;
+            }
+            if x > max_x {
+                max_x = x;
+            }
+            if y < min_y {
+                min_y = y;
+            }
+            if y > max_y {
+                max_y = y;
+            }
+        }
+
+        return (min_x, min_y, max_x, max_y);
     }
 }
 
@@ -169,8 +207,8 @@ impl GeneticProgram {
         );
     }
 
-    fn get_objects(&self) -> PyResult<Vec<(i32, i32, i32)>> {
-        Ok(self.problem.generate_objects())
+    fn get_boundaries(&self) -> PyResult<(i32, i32, i32, i32)> {
+        Ok(self.problem.get_boundaries())
     }
 }
 
