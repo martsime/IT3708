@@ -1,13 +1,15 @@
-use pyo3::prelude::*;
-use std::io::{self, BufRead};
+use std::collections::HashMap;
 use std::fs::File;
+use std::i32;
+use std::io::{self, BufRead};
 use std::path::Path;
+
+use pyo3::prelude::*;
 
 #[pyclass(module = "genetic")]
 struct GeneticProgram {
     problem: Problem,
 }
-
 
 struct Pos {
     pub x: i32,
@@ -30,9 +32,9 @@ struct Depot {
 
 struct Problem {
     path: String,
-    max_vehicles: i32, // Maximum number of vehicles available for each depot
+    max_vehicles: i32,  // Maximum number of vehicles available for each depot
     num_customers: i32, // Total number of customers
-    num_depots: i32, // Number of depots
+    num_depots: i32,    // Number of depots
     customers: Vec<Customer>,
     depots: Vec<Depot>,
 }
@@ -40,10 +42,6 @@ struct Problem {
 impl Problem {
     pub fn new(path: String) -> Problem {
         Problem::load_and_parse(path)
-    }
-
-    fn print_path(&self) {
-        println!("Path: {}", self.path)
     }
 
     fn load_and_parse(path: String) -> Problem {
@@ -57,12 +55,14 @@ impl Problem {
 
         let depot_info_lines = &lines[1..=(num_customers as usize)];
         let depot_pos_start_index = (1 + num_customers + num_depots) as usize;
-        let depot_pos_lines = &lines[depot_pos_start_index..(depot_pos_start_index + num_depots as usize)];
+        let depot_pos_lines =
+            &lines[depot_pos_start_index..(depot_pos_start_index + num_depots as usize)];
 
         let depots = Problem::parse_depots(depot_info_lines, depot_pos_lines, num_depots);
 
         let customer_start_index = (1 + num_depots) as usize;
-        let customer_lines = &lines[customer_start_index..(customer_start_index + num_customers as usize)];
+        let customer_lines =
+            &lines[customer_start_index..(customer_start_index + num_customers as usize)];
 
         let customers = Problem::parse_customers(customer_lines, num_customers);
 
@@ -78,6 +78,7 @@ impl Problem {
 
     fn parse_customers(customer_lines: &[Vec<i32>], num_customers: i32) -> Vec<Customer> {
         let mut customers: Vec<Customer> = Vec::with_capacity(num_customers as usize);
+
         // Load all customers
         for i in 0..num_customers {
             let line = customer_lines[i as usize].clone();
@@ -98,11 +99,15 @@ impl Problem {
                 demand,
             };
             customers.push(customer);
-        };
+        }
         return customers;
     }
 
-    fn parse_depots(info_lines: &[Vec<i32>], pos_lines: &[Vec<i32>], num_depots: i32) -> Vec<Depot> {
+    fn parse_depots(
+        info_lines: &[Vec<i32>],
+        pos_lines: &[Vec<i32>],
+        num_depots: i32,
+    ) -> Vec<Depot> {
         let mut depots: Vec<Depot> = Vec::with_capacity(num_depots as usize);
 
         for i in 0..num_depots {
@@ -125,7 +130,7 @@ impl Problem {
                 pos,
             };
             depots.push(depot);
-        };
+        }
         return depots;
     }
 
@@ -133,13 +138,16 @@ impl Problem {
         let path = Path::new(&path);
         let file = File::open(path).unwrap();
         let reader = io::BufReader::new(file);
-        
-        let lines: Vec<Vec<i32>> = reader.lines()
+
+        let lines: Vec<Vec<i32>> = reader
+            .lines()
             .map(|line| {
-                line.unwrap().split_whitespace().map(|num| {
-                    num.parse().unwrap()
-                }).collect()
-            }).collect();
+                line.unwrap()
+                    .split_whitespace()
+                    .map(|num| num.parse().unwrap())
+                    .collect()
+            })
+            .collect();
         lines
     }
 
