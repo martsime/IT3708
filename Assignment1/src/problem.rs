@@ -4,8 +4,7 @@ use std::i32;
 use std::io::{self, BufRead};
 use std::path::Path;
 
-use rand::seq::SliceRandom;
-use rand::{thread_rng, Rng};
+use crate::utils::Pos;
 
 struct Pos {
     pub x: i32,

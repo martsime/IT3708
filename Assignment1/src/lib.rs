@@ -1,4 +1,5 @@
 mod problem;
+mod utils;
 
 use std::collections::HashMap;
 
