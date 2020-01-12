@@ -1,15 +1,15 @@
 use std::collections::HashMap;
+use std::f64;
 use std::fs::File;
 use std::i32;
 use std::io::{self, BufRead};
 use std::path::Path;
 
+use crate::simulation::Simulation;
+use crate::solution::OptimalSolution;
 use crate::utils::Pos;
 
-struct Pos {
-    pub x: i32,
-    pub y: i32,
-}
+const POPULATION_SIZE: i32 = 5000;
 
 struct Customer {
     pub number: i32,
@@ -25,23 +25,96 @@ struct Depot {
     pub pos: Pos,
 }
 
-pub struct Problem {
-    path: String,
-    max_vehicles: i32,  // Maximum number of vehicles available for each depot
-    num_customers: i32, // Total number of customers
-    num_depots: i32,    // Number of depots
-    customers: Vec<Customer>,
-    depots: Vec<Depot>,
+pub struct Distances {
+    pub map: HashMap<(i32, i32), f64>,
 }
 
-struct Route {
-    depot: Depot,
+impl Distances {
+    pub fn get(&self, key: &(i32, i32)) -> Option<f64> {
+        match self.map.get(key) {
+            Some(val) => Some(*val),
+            None => None,
+        }
+    }
+}
+
+pub struct Capacities {
+    pub map: HashMap<i32, i32>,
+}
+
+impl Capacities {
+    pub fn get(&self, key: &i32) -> Option<i32> {
+        match self.map.get(key) {
+            Some(val) => Some(*val),
+            None => None,
+        }
+    }
+}
+
+pub struct Problem {
+    path: String,
+    pub max_vehicles: i32, // Maximum number of vehicles available for each depot
+    pub num_customers: i32, // Total number of customers
+    pub num_depots: i32,   // Number of depots
     customers: Vec<Customer>,
+    depots: Vec<Depot>,
+    pub simulation: Simulation,
+    optimal_solution: Option<OptimalSolution>,
+    distances: Option<Distances>,
+    capacities: Option<Capacities>,
+}
+
+impl Clone for Customer {
+    fn clone(&self) -> Self {
+        Customer {
+            number: self.number,
+            pos: self.pos.clone(),
+            service_time: self.service_time,
+            demand: self.demand,
+        }
+    }
 }
 
 impl Problem {
     pub fn new(path: String) -> Problem {
         Problem::load_and_parse(path)
+    }
+
+    pub fn load_optimal_solution(&mut self, path: String) {
+        let optimal_solution = OptimalSolution::new(path);
+        self.optimal_solution = Some(optimal_solution);
+    }
+
+    pub fn calculate_distances(&mut self) {
+        let mut distances: HashMap<(i32, i32), f64> = HashMap::new();
+        let mut positions: HashMap<i32, Pos> = HashMap::new();
+        for customer in self.customers.iter() {
+            positions.insert(customer.number, customer.pos.clone());
+        }
+        for depot in self.depots.iter() {
+            positions.insert(depot.number, depot.pos.clone());
+        }
+
+        for (key1, pos1) in positions.iter() {
+            for (key2, pos2) in positions.iter() {
+                let distance_key: (i32, i32) = (*key1, *key2);
+                let distance = pos1.distance_to(pos2);
+                distances.insert(distance_key, distance);
+            }
+        }
+
+        self.distances = Some(Distances { map: distances });
+    }
+
+    pub fn calculate_capacities(&mut self) {
+        let mut capacities: HashMap<i32, i32> = HashMap::new();
+        for customer in self.customers.iter() {
+            capacities.insert(customer.number, customer.demand);
+        }
+        for depot in self.depots.iter() {
+            capacities.insert(depot.number, depot.capacity);
+        }
+        self.capacities = Some(Capacities { map: capacities });
     }
 
     fn load_and_parse(path: String) -> Problem {
@@ -73,6 +146,10 @@ impl Problem {
             num_depots,
             depots,
             customers,
+            simulation: Simulation::new(),
+            optimal_solution: None,
+            distances: None,
+            capacities: None,
         }
     }
 
@@ -208,17 +285,89 @@ impl Problem {
         return (min_x, min_y, max_x, max_y);
     }
 
-    pub fn get_routes(&self) -> Vec<Vec<i32>> {
-        let mut routes: Vec<Vec<i32>> = Vec::new();
-        let mut nodes: Vec<i32> = Vec::new();
-        let mut indices: Vec<i32> = (1..=self.customers.len() as i32).collect();
-        let mut rng = thread_rng();
-        indices.shuffle(&mut rng);
+    pub fn generate_population(&mut self) {
+        let initial_routes = self.init_solution();
+        self.calculate_distances();
+        self.calculate_capacities();
+        let distances = self.distances.as_ref().unwrap();
+        let capacities = self.capacities.as_ref().unwrap();
+        self.simulation
+            .create_population(POPULATION_SIZE, initial_routes, distances, capacities);
+    }
 
-        nodes.push(51);
-        nodes.append(&mut indices);
-        nodes.push(51);
-        routes.push(nodes);
+    pub fn simulate(&mut self) {
+        // let solution = self.optimal_solution.as_ref().unwrap().get_solution(&self);
+        let distances = self.distances.as_ref().unwrap();
+        let capacities = self.capacities.as_ref().unwrap();
+        self.simulation.run(distances, capacities);
+        let solution = self.simulation.get_best_solution();
+
+        // println!("Solution:");
+        println!("Score: {}", solution.evaluate(distances, capacities));
+        // println!("{}", solution);
+    }
+
+    fn init_solution(&self) -> Vec<Vec<i32>> {
+        let mut routes = Vec::new();
+        let mut unvisited_customers = Vec::new();
+        for customer in self.customers.iter() {
+            unvisited_customers.push(customer.clone());
+        }
+        for depot in self.depots.iter() {
+            for _ in 0..self.max_vehicles {
+                let mut capacity_left = depot.capacity;
+                let mut route = Vec::new();
+                let mut current_pos = depot.pos.clone();
+                route.push(depot.number);
+                loop {
+                    let next_customer = self.get_closest_customer(
+                        &current_pos,
+                        &mut unvisited_customers,
+                        capacity_left,
+                    );
+
+                    match next_customer {
+                        Some(customer) => {
+                            route.push(customer.number);
+                            capacity_left -= customer.demand;
+                            current_pos = customer.pos.clone();
+                        }
+                        _ => {
+                            break;
+                        }
+                    }
+                }
+                route.push(depot.number);
+
+                routes.push(route);
+            }
+        }
         return routes;
+    }
+
+    fn get_closest_customer(
+        &self,
+        point: &Pos,
+        un_customers: &mut Vec<Customer>,
+        capacity_left: i32,
+    ) -> Option<Customer> {
+        let mut closest_customer_index: i32 = -1;
+        let mut shortest_distance = f64::MAX;
+        for i in 0..un_customers.len() {
+            let customer = &un_customers[i];
+            let distance = point.distance_to(&customer.pos);
+            if distance < shortest_distance && capacity_left >= customer.demand {
+                shortest_distance = distance;
+                closest_customer_index = i as i32;
+            }
+        }
+
+        let mut closest_customer: Option<Customer> = None;
+
+        if closest_customer_index >= 0 {
+            closest_customer = Some(un_customers.swap_remove(closest_customer_index as usize));
+        }
+
+        return closest_customer;
     }
 }

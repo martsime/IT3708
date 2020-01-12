@@ -1,10 +1,17 @@
+#[cfg(test)]
+#[macro_use]
+extern crate approx;
+
 mod problem;
+mod simulation;
+mod solution;
 mod utils;
 
 use std::collections::HashMap;
 
 use problem::Problem;
 use pyo3::prelude::*;
+use solution::OptimalSolution;
 
 #[pyclass(module = "genetic")]
 struct GeneticProgram {
@@ -14,8 +21,9 @@ struct GeneticProgram {
 #[pymethods]
 impl GeneticProgram {
     #[new]
-    fn new(obj: &PyRawObject, path: String) {
-        let problem = Problem::new(path);
+    fn new(obj: &PyRawObject, problem_path: String, optimal_solution_path: String) {
+        let mut problem = Problem::new(problem_path);
+        problem.load_optimal_solution(optimal_solution_path);
         obj.init(GeneticProgram { problem });
     }
 
@@ -29,6 +37,16 @@ impl GeneticProgram {
 
     fn get_boundaries(&self) -> PyResult<(i32, i32, i32, i32)> {
         Ok(self.problem.get_boundaries())
+    }
+
+    fn generate_population(&mut self) {
+        self.problem.generate_population();
+    }
+
+    fn simulate(&mut self) -> PyResult<Vec<Vec<i32>>> {
+        self.problem.simulate();
+        let solution = self.problem.simulation.get_best_solution();
+        Ok(solution.routes)
     }
 }
 

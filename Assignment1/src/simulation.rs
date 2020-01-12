@@ -1,9 +1,13 @@
 use std::fmt;
 
-use std::collections::HashMap;
+use std::f64;
 use std::i32;
 
-use crate::utils::Pos;
+use crate::problem::{Capacities, Distances};
+use crate::solution::Solution;
+
+use rand::prelude::*;
+use rand::{self, Rng};
 
 #[derive(Clone)]
 pub enum Gene {
@@ -39,25 +43,6 @@ impl Chromosome {
         Chromosome { genes: Vec::new() }
     }
 
-    pub fn generate(&mut self) {
-        for i in 0..5 {
-            self.genes.push(Gene::Customer(i));
-        }
-        self.genes.push(Gene::Depot(15));
-
-        for i in 5..10 {
-            self.genes.push(Gene::Customer(i));
-        }
-
-        self.genes.push(Gene::Depot(15));
-        for i in 10..15 {
-            self.genes.push(Gene::Customer(i));
-        }
-
-        self.genes.push(Gene::Depot(15));
-        self.genes.push(Gene::Depot(15));
-    }
-
     fn get_first_depot_index(&self) -> Option<usize> {
         let mut index: Option<usize> = None;
 
@@ -70,10 +55,86 @@ impl Chromosome {
                     index = Some(i);
                     break;
                 }
-                _ => {}
+                _ => (),
             }
         }
         index
+    }
+
+    pub fn get_single_mutation(&self) -> Chromosome {
+        let mut new_chromosome = self.clone();
+        let new_chromosome_length = new_chromosome.genes.len();
+        let mut rng = rand::thread_rng();
+        let index_one = rng.gen_range(0, new_chromosome_length);
+        let index_two = rng.gen_range(0, new_chromosome_length);
+        new_chromosome.genes.swap(index_one, index_two);
+        // println!("Swapping index {} with {}", index_one, index_two);
+        new_chromosome
+    }
+
+    pub fn crossover_mutation(&self) -> Chromosome {
+        let mut new_chromosome = self.clone();
+
+        let new_chromosome_length = new_chromosome.genes.len();
+        let mut rng = rand::thread_rng();
+        let index_one = rng.gen_range(0, new_chromosome_length);
+        let index_two = rng.gen_range(index_one, new_chromosome_length);
+
+        let slice = &mut new_chromosome.genes[index_one..index_two];
+
+        slice.shuffle(&mut rng);
+
+        //println!("Index: ({}, {})", index_one, index_two);
+        //println!("Old: {}", self);
+        //println!("New: {}", new_chromosome);
+        new_chromosome
+    }
+
+    pub fn evaluate(&self, distances: &Distances, capacities: &Capacities) -> f64 {
+        let total_genes = self.genes.len();
+        let start_index = self.get_first_depot_index().unwrap();
+
+        let mut score: f64 = 0.0;
+        let mut index = start_index;
+        let mut current_node = self.genes[index].value();
+        let mut depot_node = current_node;
+        let mut distance_key: (i32, i32);
+
+        let mut capacity_left = capacities.get(&depot_node).unwrap();
+
+        loop {
+            index = (index + 1) % total_genes;
+            match self.genes[index] {
+                Gene::Depot(node) => {
+                    // Back to last depot
+                    distance_key = (current_node, depot_node);
+                    current_node = node;
+                    depot_node = node;
+                    capacity_left = capacities.get(&depot_node).unwrap();
+                }
+                Gene::Customer(node) => {
+                    distance_key = (current_node, node);
+                    current_node = node;
+                    capacity_left -= capacities.get(&current_node).unwrap();
+                }
+            }
+            let distance: f64 = match distances.get(&distance_key) {
+                Some(val) => val,
+                None => {
+                    panic!("Unable to find distance: {:?}", distance_key);
+                }
+            };
+            score += distance;
+
+            if capacity_left < 0 {
+                score += 10000.0;
+            }
+
+            if index == start_index {
+                break;
+            }
+        }
+        score
     }
 }
 
@@ -87,21 +148,17 @@ impl fmt::Display for Chromosome {
     }
 }
 
-pub struct Solution {
-    pub routes: Vec<Vec<i32>>,
-}
-
 trait Decode {
     fn decode(&self) -> Solution;
 }
 
-trait Encode {
+pub trait Encode {
     fn encode(&self) -> Chromosome;
 }
 
 pub struct Population {
     pub chromosomes: Vec<Chromosome>,
-    pub scores: Vec<f32>,
+    pub scores: Vec<(usize, f64)>,
 }
 
 impl Population {
@@ -112,45 +169,51 @@ impl Population {
         }
     }
 
-    pub fn evaluate(&mut self, positions: &HashMap<i32, Pos>) {
-        let mut new_scores: Vec<f32> = Vec::with_capacity(self.chromosomes.len());
-        for chromosome in self.chromosomes.iter() {
-            let total_genes = chromosome.genes.len();
-            let start_index = chromosome.get_first_depot_index().unwrap();
-
-            let mut score: f32 = 0.0;
-            let mut index = start_index;
-            let mut current_node = chromosome.genes[index].value();
-
-            let mut current_pos = positions.get(&current_node).unwrap();
-
-            let mut depot_pos = current_pos;
-            loop {
-                index = (index + 1) % total_genes;
-                match chromosome.genes[index] {
-                    Gene::Depot(val) => {
-                        // Back to last depot
-                        score += current_pos.distance_to(depot_pos);
-                        current_node = val;
-                        current_pos = positions.get(&val).unwrap();
-                        depot_pos = current_pos;
-                    }
-                    Gene::Customer(val) => {
-                        let new_node = val;
-                        let new_pos = positions.get(&current_node).unwrap();
-                        score += current_pos.distance_to(new_pos);
-                        current_node = new_node;
-                        current_pos = new_pos;
-                    }
-                }
-
-                if index == start_index {
-                    break;
-                }
-            }
-            new_scores.push(score);
+    pub fn evaluate(&mut self, distances: &Distances, capacities: &Capacities) {
+        let mut scores: Vec<(usize, f64)> = Vec::new();
+        for i in 0..self.chromosomes.len() {
+            let chromosome = &self.chromosomes[i];
+            let score = chromosome.evaluate(distances, capacities);
+            scores.push((i, score));
         }
-        self.scores = new_scores;
+
+        scores.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        self.scores = scores;
+    }
+
+    pub fn selection(&self) -> Vec<usize> {
+        let max_weight = self.scores.len();
+        let weight_multiple = 1;
+
+        let mut weights = Vec::new();
+        let mut indices = Vec::new();
+
+        //println!("{:?}", self.scores);
+        for i in 0..self.scores.len() {
+            let score = self.scores[i].1;
+            if score < 10000.0 {
+                let weight = (max_weight - i) * weight_multiple;
+                weights.push(weight);
+                indices.push(self.scores[i].0);
+            } else {
+                //println!("Index {} skipped, score: {}", i, score);
+            }
+        }
+
+        let dist = rand::distributions::WeightedIndex::new(&weights).unwrap();
+        let mut rng = rand::thread_rng();
+
+        let mut selected = Vec::with_capacity(self.scores.len());
+        for _ in 0..self.scores.len() {
+            let select = dist.sample(&mut rng);
+            selected.push(indices[select]);
+        }
+
+        selected
+    }
+
+    pub fn add(&mut self, chromosome: Chromosome) {
+        self.chromosomes.push(chromosome);
     }
 }
 
@@ -194,39 +257,49 @@ impl Decode for Chromosome {
 pub struct Simulation {
     population: Population,
     generation: i32,
-    nodes: HashMap<i32, Pos>,
 }
 
 impl Simulation {
     pub fn new() -> Simulation {
-        let nodes: HashMap<i32, Pos> = HashMap::new();
         Simulation {
             population: Population::new(),
             generation: 1,
-            nodes,
         }
     }
+    pub fn run(&mut self, distances: &Distances, capacities: &Capacities) {
+        let mut new_population = Population::new();
+        let selection = self.population.selection();
+        for i in selection {
+            let selected = &self.population.chromosomes[i];
+            let mut rng = rand::thread_rng();
+            let roll: f64 = rng.gen();
 
-    pub fn set_positions(&mut self, positions: HashMap<i32, Pos>) {
-        self.nodes = positions;
-    }
-
-    pub fn run(&mut self) {
-        self.population.evaluate(&self.nodes);
-        println!("Scores: {:?}", self.population.scores);
+            if roll > 0.95 {
+                new_population.add(selected.crossover_mutation());
+            } else if roll > 0.6 {
+                new_population.add(selected.get_single_mutation());
+            } else {
+                new_population.add(selected.clone());
+            }
+        }
+        self.population = new_population;
+        self.population.evaluate(distances, capacities);
+        self.generation += 1;
     }
 
     pub fn get_best_solution(&self) -> Solution {
-        let chromosome = self.population.chromosomes.first().unwrap();
+        let chromosome = &self.population.chromosomes[self.population.scores[0].0];
         let solution = chromosome.decode();
         solution
     }
 
-    pub fn reset_population(&mut self) {
-        self.population = Population::new();
-    }
-
-    pub fn create_population(&mut self, size: i32, initial_routes: Vec<Vec<i32>>) {
+    pub fn create_population(
+        &mut self,
+        size: i32,
+        initial_routes: Vec<Vec<i32>>,
+        distances: &Distances,
+        capacities: &Capacities,
+    ) {
         let solution = Solution {
             routes: initial_routes,
         };
@@ -234,24 +307,6 @@ impl Simulation {
         for _ in 0..size {
             self.population.chromosomes.push(chromosome.clone());
         }
-    }
-}
-
-impl Encode for Solution {
-    fn encode(&self) -> Chromosome {
-        println!("Routes: {:?}", self.routes);
-        let mut genes: Vec<Gene> = Vec::new();
-        for route in self.routes.iter() {
-            let num_stops = route.len();
-            if num_stops < 2 {
-                panic!("Error in routes");
-            }
-            let depot = route[0];
-            genes.push(Gene::Depot(depot));
-            for i in 1..num_stops - 1 {
-                genes.push(Gene::Customer(route[i]));
-            }
-        }
-        Chromosome { genes }
+        self.population.evaluate(distances, capacities);
     }
 }
