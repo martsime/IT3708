@@ -11,5 +11,8 @@ name = "genetic"
 crate-type = ["cdylib"]
 
 [dependencies.pyo3]
-pyo3 = "0.8.5"
-features = ["extension-module"]
+version = "= 0.8.5"
+
+[features]
+extension-module = ["pyo3/extension-module"]
+default = ["extension-module"]
