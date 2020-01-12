@@ -11,6 +11,7 @@ name = "genetic"
 crate-type = ["cdylib"]
 
 [dependencies]
+rand = "0.7.3"
 approx = "0.3.2"
 
 [dependencies.pyo3]
