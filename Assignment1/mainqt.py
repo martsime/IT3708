@@ -49,7 +49,7 @@ class Window(QMainWindow):
         self.raw_depots = {}
         self.customers = {}
         self.depots = {}
-        self.routes = {}
+        self.routes = []
 
         self.start_worker()
 
@@ -61,7 +61,12 @@ class Window(QMainWindow):
         self.worker.boundaries_signal.connect(self.set_boundaries)
         self.worker.customers_signal.connect(self.update_customers)
         self.worker.depots_signal.connect(self.update_depots)
+        self.worker.routes_signal.connect(self.update_routes)
         self.worker.start()
+
+    def update_routes(self, routes):
+        self.routes = routes
+        self.update()
 
     def update_customers(self, customers):
         self.raw_customers = customers
@@ -78,6 +83,8 @@ class Window(QMainWindow):
     def paintEvent(self, event):
         self.painter = QPainter()
         self.painter.begin(self)
+        self.painter.setRenderHint(QPainter.Antialiasing)
+        self.draw_routes()
         self.draw_depots()
         self.draw_customers()
         self.painter.end()
@@ -114,6 +121,22 @@ class Window(QMainWindow):
             self.painter.drawEllipse(ellipse)
             self.painter.setPen(QPen(Qt.black))
             self.painter.drawText(ellipse, Qt.AlignCenter, f"{key}")
+
+    def draw_routes(self):
+        positions = {**self.customers, **self.depots}
+        for i, route in enumerate(self.routes):
+            draw_path = QPainterPath()
+            color = COLORS[i % len(COLORS)]
+            print(color)
+            self.painter.setPen(QPen(color, 2, Qt.SolidLine))
+            start_index = route[0]
+            route = route[1:]
+            start_pos = positions.get(start_index)
+            draw_path.moveTo(*start_pos)
+            for index in route:
+                pos = positions.get(index)
+                draw_path.lineTo(*pos)
+            self.painter.drawPath(draw_path)
 
 
     def transform_points(self, points, buffer=50):
