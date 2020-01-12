@@ -1,6 +1,6 @@
 import sys
 import time
-from PyQt5.QtGui import QPainter, QColor, QBrush, QPen
+from PyQt5.QtGui import QPainter, QColor, QBrush, QPen, QPainterPath, QFont
 from PyQt5.QtCore import QThread, pyqtSignal, Qt, QRect
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget
 
@@ -8,12 +8,20 @@ from operator import itemgetter
 
 import genetic
 
+BASE_PATH = 'data'
+PROBLEM_NUMBER = '08'
+PROBLEM_PATH = f'{BASE_PATH}/problems/p{PROBLEM_NUMBER}'
+SOLUTION_PATH = f'{BASE_PATH}/solutions/p{PROBLEM_NUMBER}.res'
+
 COLORS = [
     QColor('#ffa000'), # Orange
     QColor('#d32f2f'), # Red
     QColor('#388e3c'), # Green
+    QColor('#6a1b9a'), # Purple
     QColor('#1976d2'), # Blue
-    QColor('#fbc02d'), # Yellow
+    # QColor('#fbc02d'), # Yellow
+    QColor('#00838f'), # Cyan
+    QColor('#4e342e'), # Brown
 ]
 
 class Worker(QThread):
@@ -30,12 +38,23 @@ class Worker(QThread):
         self.wait()
 
     def run(self):
-        program = genetic.GeneticProgram("data/problems/p01")
+        program = genetic.GeneticProgram(PROBLEM_PATH, SOLUTION_PATH)
         self.boundaries_signal.emit(program.get_boundaries())
         self.customers_signal.emit(program.get_customers())
         self.depots_signal.emit(program.get_depots())
+        now = time.time()
+
+        print("Generating population")
+        program.generate_population()
+        old_solution = None
         while True:
-            time.sleep(1)
+            solution = program.simulate()
+            if solution != old_solution:
+                self.routes_signal.emit(solution)
+            old_solution = solution
+            # print(f"Awake: {time.time()}")
+            # self.routes_signal.emit(time.time())
+
             # TODO: Do calculations
 
 class Window(QMainWindow):
@@ -96,7 +115,7 @@ class Window(QMainWindow):
 
 
     def draw_depots(self):
-        radius = 50
+        radius = 30
         for key, value in self.depots.items():
             color = COLORS[key % len(COLORS)]
             self.painter.setBrush(QBrush(color, Qt.SolidPattern))
@@ -110,7 +129,7 @@ class Window(QMainWindow):
             self.painter.drawText(ellipse, Qt.AlignCenter, f"{key}")
 
     def draw_customers(self):
-        radius = 20
+        radius = 15
         for key, value in self.customers.items():
             self.painter.setBrush(QBrush(QColor('#bdbdbd'), Qt.SolidPattern))
             self.painter.setPen(Qt.NoPen)
@@ -119,6 +138,7 @@ class Window(QMainWindow):
             new_y = int(y - radius/2)
             ellipse = QRect(new_x, new_y, radius, radius)
             self.painter.drawEllipse(ellipse)
+            self.painter.setFont(QFont('Times', 6))
             self.painter.setPen(QPen(Qt.black))
             self.painter.drawText(ellipse, Qt.AlignCenter, f"{key}")
 
@@ -127,7 +147,6 @@ class Window(QMainWindow):
         for i, route in enumerate(self.routes):
             draw_path = QPainterPath()
             color = COLORS[i % len(COLORS)]
-            print(color)
             self.painter.setPen(QPen(color, 2, Qt.SolidLine))
             start_index = route[0]
             route = route[1:]
