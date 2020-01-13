@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::f64;
 use std::fmt;
 use std::i32;
@@ -8,7 +9,7 @@ use crate::solution::Solution;
 use rand::prelude::*;
 use rand::{self, Rng};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Eq, Hash, PartialEq)]
 pub enum Gene {
     Customer(i32),
     Depot(i32),
@@ -24,6 +25,15 @@ impl Gene {
 }
 
 impl fmt::Display for Gene {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Gene::Customer(val) => write!(f, "{}", val),
+            Gene::Depot(val) => write!(f, "{}", val),
+        }
+    }
+}
+
+impl fmt::Debug for Gene {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Gene::Customer(val) => write!(f, "{}", val),
@@ -71,21 +81,29 @@ impl Chromosome {
         new_chromosome
     }
 
-    pub fn crossover_mutation(&self) -> Chromosome {
+    pub fn order_one_crossover(&self, other: &Chromosome) -> Chromosome {
         let mut new_chromosome = self.clone();
 
-        let new_chromosome_length = new_chromosome.genes.len();
+        let chromosome_length = new_chromosome.genes.len();
         let mut rng = rand::thread_rng();
-        let index_one = rng.gen_range(0, new_chromosome_length);
-        let index_two = rng.gen_range(index_one, new_chromosome_length);
+        let index_one = rng.gen_range(0, chromosome_length);
+        let index_two = rng.gen_range(index_one, chromosome_length);
 
-        let slice = &mut new_chromosome.genes[index_one..index_two];
+        // Set of all the genes in the crossover sequence
+        let set: HashSet<&Gene> = self.genes[index_one..index_two].iter().collect();
 
-        slice.shuffle(&mut rng);
+        let mut insert_index = (index_two + 1) % chromosome_length;
 
-        //println!("Index: ({}, {})", index_one, index_two);
-        //println!("Old: {}", self);
-        //println!("New: {}", new_chromosome);
+        for i in 1..=chromosome_length {
+            // Wrap index around
+            let new_index = (index_two + i) % chromosome_length;
+            let new_gene = &other.genes[new_index];
+            if !set.contains(&new_gene) {
+                new_chromosome.genes[insert_index] = new_gene.clone();
+                insert_index = (insert_index + 1) % chromosome_length;
+            }
+        }
+
         new_chromosome
     }
 
@@ -268,13 +286,15 @@ impl Simulation {
     pub fn run(&mut self, distances: &Distances, capacities: &Capacities) {
         let mut new_population = Population::new();
         let selection = self.population.selection();
-        for i in selection {
+        for i in selection.iter().cloned() {
             let selected = &self.population.chromosomes[i];
             let mut rng = rand::thread_rng();
             let roll: f64 = rng.gen();
 
             if roll > 0.95 {
-                new_population.add(selected.crossover_mutation());
+                let other_selected_index = selection[rng.gen_range(0, selection.len())];
+                let other_selected = &self.population.chromosomes[other_selected_index];
+                new_population.add(selected.order_one_crossover(other_selected));
             } else if roll > 0.6 {
                 new_population.add(selected.get_single_mutation());
             } else {
@@ -322,5 +342,50 @@ mod tests {
 
         assert_eq!(gene_one, gene_two);
         assert_ne!(gene_one, gene_three);
+    }
+
+    #[test]
+    fn test_order_one_crossover() {
+        let num_customers: usize = 10;
+        let num_depots: usize = 2;
+        let num_vechicles: usize = 3;
+
+        let num_genes = num_customers + num_depots * num_vechicles;
+        let mut genes: Vec<Gene> = Vec::with_capacity(num_genes);
+        for c in 1..=num_customers {
+            genes.push(Gene::Customer(c as i32));
+        }
+
+        for d in 1..=num_depots {
+            for _ in 1..=num_vechicles {
+                genes.push(Gene::Depot((d + num_customers) as i32));
+            }
+        }
+
+        let mut rng = rand::thread_rng();
+        let mut indices: Vec<usize> = (0..num_genes).collect();
+        let mut chromosome_one = Chromosome::new();
+        let mut chromosome_two = Chromosome::new();
+
+        indices.shuffle(&mut rng);
+        for i in indices.iter().cloned() {
+            chromosome_one.genes.push(genes[i].clone());
+        }
+
+        indices.shuffle(&mut rng);
+        for i in indices.iter().cloned() {
+            chromosome_two.genes.push(genes[i].clone());
+        }
+
+        let new_chromosome = chromosome_one.order_one_crossover(&chromosome_two);
+
+        let mut valid: bool = true;
+        for gene in genes {
+            if !new_chromosome.genes.contains(&gene) {
+                valid = false;
+            }
+        }
+
+        assert_eq!(true, valid);
     }
 }
