@@ -1,6 +1,5 @@
-use std::fmt;
-
 use std::f64;
+use std::fmt;
 use std::i32;
 
 use crate::problem::{Capacities, Distances};
@@ -9,7 +8,7 @@ use crate::solution::Solution;
 use rand::prelude::*;
 use rand::{self, Rng};
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Gene {
     Customer(i32),
     Depot(i32),
@@ -308,5 +307,20 @@ impl Simulation {
             self.population.chromosomes.push(chromosome.clone());
         }
         self.population.evaluate(distances, capacities);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_gene_eq() {
+        let gene_one = Gene::Depot(1);
+        let gene_two = Gene::Depot(1);
+        let gene_three = Gene::Customer(1);
+
+        assert_eq!(gene_one, gene_two);
+        assert_ne!(gene_one, gene_three);
     }
 }
