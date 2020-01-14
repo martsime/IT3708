@@ -85,30 +85,39 @@ impl Chromosome {
         new_chromosome
     }
 
-    pub fn order_one_crossover(&self, other: &Chromosome) -> Chromosome {
-        let mut new_chromosome = self.clone();
+    pub fn order_one_crossover(&self, other: &Chromosome) -> (Chromosome, Chromosome) {
+        let mut child_one = self.clone();
+        let mut child_two = other.clone();
 
-        let chromosome_length = new_chromosome.genes.len();
+        let chromosome_length = self.genes.len();
         let mut rng = rand::thread_rng();
         let index_one = rng.gen_range(0, chromosome_length);
         let index_two = rng.gen_range(index_one, chromosome_length);
 
         // Set of all the genes in the crossover sequence
-        let set: HashSet<&Gene> = self.genes[index_one..index_two].iter().collect();
+        let set_one: HashSet<&Gene> = self.genes[index_one..index_two].iter().collect();
+        let set_two: HashSet<&Gene> = other.genes[index_one..index_two].iter().collect();
 
-        let mut insert_index = index_two;
+        let mut insert_index_one = index_two;
+        let mut insert_index_two = index_two;
 
         for i in 0..chromosome_length {
             // Wrap index around
             let new_index = (index_two + i) % chromosome_length;
-            let new_gene = &other.genes[new_index];
-            if !set.contains(&new_gene) {
-                new_chromosome.genes[insert_index] = new_gene.clone();
-                insert_index = (insert_index + 1) % chromosome_length;
+            let new_gene_one = &other.genes[new_index];
+            if !set_one.contains(&new_gene_one) {
+                child_one.genes[insert_index_one] = new_gene_one.clone();
+                insert_index_one = (insert_index_one + 1) % chromosome_length;
+            }
+
+            let new_gene_two = &self.genes[new_index];
+            if !set_two.contains(&new_gene_two) {
+                child_two.genes[insert_index_two] = new_gene_two.clone();
+                insert_index_two = (insert_index_two + 1) % chromosome_length;
             }
         }
 
-        new_chromosome
+        (child_one, child_two)
     }
 
     pub fn evaluate(&self, distances: &Distances, capacities: &Capacities) -> f64 {
