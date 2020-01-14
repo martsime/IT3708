@@ -5,8 +5,10 @@ use std::i32;
 use std::io::{self, BufRead};
 use std::path::Path;
 
+use rand::{self, Rng};
+
 use crate::simulation::Simulation;
-use crate::solution::OptimalSolution;
+use crate::solution::{OptimalSolution, Solution};
 use crate::utils::Pos;
 
 const POPULATION_SIZE: i32 = 5000;
@@ -23,6 +25,26 @@ struct Depot {
     capacity: i32,
     pub number: i32,
     pub pos: Pos,
+}
+
+struct Vehicle {
+    pub number: i32,
+    pub depot: i32,
+}
+
+impl Vehicle {
+    pub fn get_depot<'a>(&self, depots: &'a Vec<Depot>) -> &'a Depot {
+        let mut depot = None;
+        for d in depots.iter() {
+            if d.number == self.depot {
+                depot = Some(d);
+            }
+        }
+        if let None = depot {
+            panic!("Unable to find depot for vehicle!");
+        }
+        depot.unwrap()
+    }
 }
 
 pub struct Distances {
@@ -58,10 +80,12 @@ pub struct Problem {
     pub num_depots: i32,   // Number of depots
     customers: Vec<Customer>,
     depots: Vec<Depot>,
+    vehicles: Vec<Vehicle>,
     pub simulation: Simulation,
     optimal_solution: Option<OptimalSolution>,
     distances: Option<Distances>,
     capacities: Option<Capacities>,
+    positions: HashMap<i32, Pos>,
 }
 
 impl Clone for Customer {
@@ -91,8 +115,11 @@ impl Problem {
         for customer in self.customers.iter() {
             positions.insert(customer.number, customer.pos.clone());
         }
-        for depot in self.depots.iter() {
-            positions.insert(depot.number, depot.pos.clone());
+
+        for vehicle in self.vehicles.iter() {
+            let depot = vehicle.get_depot(&self.depots);
+            let pos = depot.pos.clone();
+            positions.insert(vehicle.number, pos);
         }
 
         for (key1, pos1) in positions.iter() {
@@ -111,8 +138,10 @@ impl Problem {
         for customer in self.customers.iter() {
             capacities.insert(customer.number, customer.demand);
         }
-        for depot in self.depots.iter() {
-            capacities.insert(depot.number, depot.capacity);
+
+        for vehicle in self.vehicles.iter() {
+            let depot = vehicle.get_depot(&self.depots);
+            capacities.insert(vehicle.number, depot.capacity);
         }
         self.capacities = Some(Capacities { map: capacities });
     }
@@ -139,6 +168,25 @@ impl Problem {
 
         let customers = Problem::parse_customers(customer_lines, num_customers);
 
+        let mut positions: HashMap<i32, Pos> = HashMap::new();
+
+        for customer in customers.iter() {
+            positions.insert(customer.number, customer.pos.clone());
+        }
+
+        let mut vehicles: Vec<Vehicle> = Vec::new();
+        let mut vehicle_number: i32 = num_customers + 1;
+        for depot in depots.iter() {
+            for _ in 0..max_vehicles {
+                vehicles.push(Vehicle {
+                    number: vehicle_number,
+                    depot: depot.number,
+                });
+                positions.insert(vehicle_number, depot.pos.clone());
+                vehicle_number += 1;
+            }
+        }
+
         Problem {
             path,
             max_vehicles,
@@ -146,6 +194,8 @@ impl Problem {
             num_depots,
             depots,
             customers,
+            vehicles,
+            positions,
             simulation: Simulation::new(),
             optimal_solution: None,
             distances: None,
@@ -286,62 +336,77 @@ impl Problem {
     }
 
     pub fn generate_population(&mut self) {
-        let initial_routes = self.init_solution();
         self.calculate_distances();
         self.calculate_capacities();
+        for _ in 0..POPULATION_SIZE {
+            let routes = self.random_initial();
+            self.simulation.add_solution(routes);
+        }
         let distances = self.distances.as_ref().unwrap();
         let capacities = self.capacities.as_ref().unwrap();
-        self.simulation
-            .create_population(POPULATION_SIZE, initial_routes, distances, capacities);
+        self.simulation.evaluate(&distances, &capacities);
     }
 
-    pub fn simulate(&mut self) {
+    pub fn simulate(&mut self) -> Solution {
         // let solution = self.optimal_solution.as_ref().unwrap().get_solution(&self);
         let distances = self.distances.as_ref().unwrap();
         let capacities = self.capacities.as_ref().unwrap();
         self.simulation.run(distances, capacities);
-        let solution = self.simulation.get_best_solution();
-
-        // println!("Solution:");
-        println!("Score: {}", solution.evaluate(distances, capacities));
-        // println!("{}", solution);
-    }
-
-    fn init_solution(&self) -> Vec<Vec<i32>> {
-        let mut routes = Vec::new();
-        let mut unvisited_customers = Vec::new();
-        for customer in self.customers.iter() {
-            unvisited_customers.push(customer.clone());
-        }
-        for depot in self.depots.iter() {
-            for _ in 0..self.max_vehicles {
-                let mut capacity_left = depot.capacity;
-                let mut route = Vec::new();
-                let mut current_pos = depot.pos.clone();
-                route.push(depot.number);
-                loop {
-                    let next_customer = self.get_closest_customer(
-                        &current_pos,
-                        &mut unvisited_customers,
-                        capacity_left,
-                    );
-
-                    match next_customer {
-                        Some(customer) => {
-                            route.push(customer.number);
-                            capacity_left -= customer.demand;
-                            current_pos = customer.pos.clone();
-                        }
-                        _ => {
-                            break;
+        let mut solution = self.simulation.get_best_solution();
+        // println!("Solution before {}", solution);
+        for route in solution.routes.iter_mut() {
+            for stop in route.iter_mut() {
+                if *stop > self.num_customers {
+                    let mut vehicle = None;
+                    for v in self.vehicles.iter() {
+                        if v.number == *stop {
+                            vehicle = Some(v);
                         }
                     }
+                    if let None = vehicle {
+                        panic!("Vehicle for stop {} not found!", stop);
+                    }
+                    let depot_number = vehicle.unwrap().depot;
+                    *stop = depot_number;
                 }
-                route.push(depot.number);
-
-                routes.push(route);
             }
         }
+
+        // println!("Solution after: {}", solution);
+        println!("Score: {}", solution.evaluate(distances, capacities));
+        solution
+    }
+
+    fn random_initial(&self) -> Vec<Vec<i32>> {
+        let mut routes = Vec::new();
+        let mut unvisited_customers: Vec<Customer> = self.customers.iter().cloned().collect();
+
+        let mut route_map: HashMap<i32, Vec<i32>> = HashMap::new();
+        for vehicle in self.vehicles.iter() {
+            let mut route = Vec::new();
+            route.push(vehicle.number);
+            route_map.insert(vehicle.number, route);
+        }
+
+        let mut rng = rand::thread_rng();
+
+        while !unvisited_customers.is_empty() {
+            let vehicle = &self.vehicles[rng.gen_range(0, self.vehicles.len())];
+            let route = route_map.get_mut(&vehicle.number).unwrap();
+            let last_stop = route.last().unwrap();
+            let last_pos = self.positions.get(last_stop).unwrap();
+            let closest_customer = self
+                .get_closest_customer(&last_pos, &mut unvisited_customers, 1000)
+                .unwrap();
+            route.push(closest_customer.number);
+        }
+
+        for vehicle in self.vehicles.iter() {
+            let mut route = route_map.get(&vehicle.number).unwrap().clone();
+            route.push(vehicle.number);
+            routes.push(route);
+        }
+
         return routes;
     }
 

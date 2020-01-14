@@ -52,6 +52,10 @@ impl Chromosome {
         Chromosome { genes: Vec::new() }
     }
 
+    pub fn from_vec(vec: Vec<Gene>) -> Chromosome {
+        Chromosome { genes: vec }
+    }
+
     fn get_first_depot_index(&self) -> Option<usize> {
         let mut index: Option<usize> = None;
 
@@ -72,10 +76,10 @@ impl Chromosome {
 
     pub fn get_single_mutation(&self) -> Chromosome {
         let mut new_chromosome = self.clone();
-        let new_chromosome_length = new_chromosome.genes.len();
+        let chromosome_length = new_chromosome.genes.len();
         let mut rng = rand::thread_rng();
-        let index_one = rng.gen_range(0, new_chromosome_length);
-        let index_two = rng.gen_range(0, new_chromosome_length);
+        let index_one = rng.gen_range(0, chromosome_length);
+        let index_two = rng.gen_range(0, chromosome_length);
         new_chromosome.genes.swap(index_one, index_two);
         // println!("Swapping index {} with {}", index_one, index_two);
         new_chromosome
@@ -92,9 +96,9 @@ impl Chromosome {
         // Set of all the genes in the crossover sequence
         let set: HashSet<&Gene> = self.genes[index_one..index_two].iter().collect();
 
-        let mut insert_index = (index_two + 1) % chromosome_length;
+        let mut insert_index = index_two;
 
-        for i in 1..=chromosome_length {
+        for i in 0..chromosome_length {
             // Wrap index around
             let new_index = (index_two + i) % chromosome_length;
             let new_gene = &other.genes[new_index];
@@ -200,12 +204,11 @@ impl Population {
 
     pub fn selection(&self) -> Vec<usize> {
         let max_weight = self.scores.len();
-        let weight_multiple = 1;
+        let weight_multiple = 5;
 
         let mut weights = Vec::new();
         let mut indices = Vec::new();
 
-        //println!("{:?}", self.scores);
         for i in 0..self.scores.len() {
             let score = self.scores[i].1;
             if score < 10000.0 {
@@ -213,7 +216,6 @@ impl Population {
                 weights.push(weight);
                 indices.push(self.scores[i].0);
             } else {
-                //println!("Index {} skipped, score: {}", i, score);
             }
         }
 
@@ -272,7 +274,7 @@ impl Decode for Chromosome {
 }
 
 pub struct Simulation {
-    population: Population,
+    pub population: Population,
     generation: i32,
 }
 
@@ -291,7 +293,7 @@ impl Simulation {
             let mut rng = rand::thread_rng();
             let roll: f64 = rng.gen();
 
-            if roll > 0.95 {
+            if roll > 0.9 {
                 let other_selected_index = selection[rng.gen_range(0, selection.len())];
                 let other_selected = &self.population.chromosomes[other_selected_index];
                 new_population.add(selected.order_one_crossover(other_selected));
@@ -312,20 +314,13 @@ impl Simulation {
         solution
     }
 
-    pub fn create_population(
-        &mut self,
-        size: i32,
-        initial_routes: Vec<Vec<i32>>,
-        distances: &Distances,
-        capacities: &Capacities,
-    ) {
-        let solution = Solution {
-            routes: initial_routes,
-        };
+    pub fn add_solution(&mut self, routes: Vec<Vec<i32>>) {
+        let solution = Solution { routes };
         let chromosome = solution.encode();
-        for _ in 0..size {
-            self.population.chromosomes.push(chromosome.clone());
-        }
+        self.population.chromosomes.push(chromosome);
+    }
+
+    pub fn evaluate(&mut self, distances: &Distances, capacities: &Capacities) {
         self.population.evaluate(distances, capacities);
     }
 }

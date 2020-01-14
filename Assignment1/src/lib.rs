@@ -44,8 +44,7 @@ impl GeneticProgram {
     }
 
     fn simulate(&mut self) -> PyResult<Vec<Vec<i32>>> {
-        self.problem.simulate();
-        let solution = self.problem.simulation.get_best_solution();
+        let solution = self.problem.simulate();
         Ok(solution.routes)
     }
 }
