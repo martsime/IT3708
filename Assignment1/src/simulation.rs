@@ -347,49 +347,4 @@ mod tests {
         assert_eq!(gene_one, gene_two);
         assert_ne!(gene_one, gene_three);
     }
-
-    #[test]
-    fn test_order_one_crossover() {
-        let num_customers: usize = 10;
-        let num_depots: usize = 2;
-        let num_vechicles: usize = 3;
-
-        let num_genes = num_customers + num_depots * num_vechicles;
-        let mut genes: Vec<Gene> = Vec::with_capacity(num_genes);
-        for c in 1..=num_customers {
-            genes.push(Gene::Customer(c as i32));
-        }
-
-        for d in 1..=num_depots {
-            for _ in 1..=num_vechicles {
-                genes.push(Gene::Depot((d + num_customers) as i32));
-            }
-        }
-
-        let mut rng = rand::thread_rng();
-        let mut indices: Vec<usize> = (0..num_genes).collect();
-        let mut chromosome_one = Chromosome::new();
-        let mut chromosome_two = Chromosome::new();
-
-        indices.shuffle(&mut rng);
-        for i in indices.iter().cloned() {
-            chromosome_one.genes.push(genes[i].clone());
-        }
-
-        indices.shuffle(&mut rng);
-        for i in indices.iter().cloned() {
-            chromosome_two.genes.push(genes[i].clone());
-        }
-
-        let new_chromosome = chromosome_one.order_one_crossover(&chromosome_two);
-
-        let mut valid: bool = true;
-        for gene in genes {
-            if !new_chromosome.genes.contains(&gene) {
-                valid = false;
-            }
-        }
-
-        assert_eq!(true, valid);
-    }
 }
