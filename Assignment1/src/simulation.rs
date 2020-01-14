@@ -9,6 +9,10 @@ use crate::solution::Solution;
 use rand::prelude::*;
 use rand::{self, Rng};
 
+const ELITISM: usize = 2;
+const MUTATION_RATE: f64 = 0.03;
+const CROSSOVER_RATE: f64 = 0.5;
+
 #[derive(Clone, Eq, Hash, PartialEq)]
 pub enum Gene {
     Customer(i32),
@@ -74,14 +78,13 @@ impl Chromosome {
         index
     }
 
-    pub fn get_single_mutation(&self) -> Chromosome {
+    pub fn single_mutation(&self) -> Chromosome {
         let mut new_chromosome = self.clone();
         let chromosome_length = new_chromosome.genes.len();
         let mut rng = rand::thread_rng();
         let index_one = rng.gen_range(0, chromosome_length);
         let index_two = rng.gen_range(0, chromosome_length);
         new_chromosome.genes.swap(index_one, index_two);
-        // println!("Swapping index {} with {}", index_one, index_two);
         new_chromosome
     }
 
@@ -157,7 +160,7 @@ impl Chromosome {
             score += distance;
 
             if capacity_left < 0 {
-                score += 10000.0;
+                score += 1000.0;
             }
 
             if index == start_index {
@@ -291,13 +294,13 @@ impl Decode for Chromosome {
                 break;
             }
         }
-        Solution { routes }
+        Solution::new(routes)
     }
 }
 
 pub struct Simulation {
     pub population: Population,
-    generation: i32,
+    pub generation: i32,
 }
 
 impl Simulation {
@@ -324,7 +327,7 @@ impl Simulation {
     }
 
     pub fn add_solution(&mut self, routes: Vec<Vec<i32>>) {
-        let solution = Solution { routes };
+        let solution = Solution::new(routes);
         let chromosome = solution.encode();
         self.population.chromosomes.push(chromosome);
     }

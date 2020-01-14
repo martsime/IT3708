@@ -10,9 +10,16 @@ use crate::simulation::{Chromosome, Encode, Gene};
 
 pub struct Solution {
     pub routes: Vec<Vec<i32>>,
+    pub score: Option<f64>,
 }
 
 impl Solution {
+    pub fn new(routes: Vec<Vec<i32>>) -> Solution {
+        Solution {
+            routes,
+            score: None,
+        }
+    }
     pub fn evaluate(&self, distances: &Distances, capacities: &Capacities) -> f64 {
         let chromosome = self.encode();
         chromosome.evaluate(distances, capacities)
@@ -115,7 +122,7 @@ impl OptimalSolution {
                 routes.push(route);
             }
         }
-        Solution { routes }
+        Solution::new(routes)
     }
 
     fn load(path: &String) -> Vec<Vec<String>> {

@@ -11,7 +11,7 @@ use crate::simulation::Simulation;
 use crate::solution::{OptimalSolution, Solution};
 use crate::utils::Pos;
 
-const POPULATION_SIZE: i32 = 5000;
+const POPULATION_SIZE: i32 = 1000;
 
 struct Customer {
     pub number: i32,
@@ -348,12 +348,11 @@ impl Problem {
     }
 
     pub fn simulate(&mut self) -> Solution {
-        // let solution = self.optimal_solution.as_ref().unwrap().get_solution(&self);
         let distances = self.distances.as_ref().unwrap();
         let capacities = self.capacities.as_ref().unwrap();
         self.simulation.run(distances, capacities);
         let mut solution = self.simulation.get_best_solution();
-        // println!("Solution before {}", solution);
+
         for route in solution.routes.iter_mut() {
             for stop in route.iter_mut() {
                 if *stop > self.num_customers {
@@ -372,8 +371,11 @@ impl Problem {
             }
         }
 
-        // println!("Solution after: {}", solution);
-        println!("Score: {}", solution.evaluate(distances, capacities));
+        println!(
+            "Generation {}, Score: {}",
+            self.simulation.generation,
+            solution.score.unwrap(),
+        );
         solution
     }
 
