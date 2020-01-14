@@ -211,37 +211,50 @@ impl Population {
         self.scores = scores;
     }
 
-    pub fn selection(&self) -> Vec<usize> {
-        let max_weight = self.scores.len();
-        let weight_multiple = 5;
+    pub fn evolve(&self) -> Population {
+        let mut new_chromosomes: Vec<Chromosome> = Vec::with_capacity(self.chromosomes.len());
 
-        let mut weights = Vec::new();
-        let mut indices = Vec::new();
-
-        for i in 0..self.scores.len() {
-            let score = self.scores[i].1;
-            if score < 10000.0 {
-                let weight = (max_weight - i) * weight_multiple;
-                weights.push(weight);
-                indices.push(self.scores[i].0);
-            } else {
-            }
+        for i in 0..ELITISM {
+            let elite_chromosome = &self.chromosomes[self.scores[i].0];
+            new_chromosomes.push(elite_chromosome.clone());
         }
+
+        let weights: Vec<f64> = self.scores.iter().map(|tup| 1.0 / tup.1).collect();
+        let selection: Vec<usize> = self.scores.iter().map(|tup| tup.0).collect();
 
         let dist = rand::distributions::WeightedIndex::new(&weights).unwrap();
         let mut rng = rand::thread_rng();
 
-        let mut selected = Vec::with_capacity(self.scores.len());
-        for _ in 0..self.scores.len() {
-            let select = dist.sample(&mut rng);
-            selected.push(indices[select]);
+        while new_chromosomes.len() < self.chromosomes.len() {
+            let parent_one = &self.chromosomes[selection[dist.sample(&mut rng)]];
+            let parent_two = &self.chromosomes[selection[dist.sample(&mut rng)]];
+            let crossover: f64 = rng.gen();
+            let (mut child_one, mut child_two);
+            if crossover < CROSSOVER_RATE {
+                let (a, b) = parent_one.order_one_crossover(parent_two);
+                child_one = a;
+                child_two = b;
+            } else {
+                child_one = parent_one.clone();
+                child_two = parent_two.clone();
+            }
+            let mutate_one: f64 = rng.gen();
+            let mutate_two: f64 = rng.gen();
+
+            if mutate_one < MUTATION_RATE {
+                child_one = child_one.single_mutation();
+            }
+
+            if mutate_two < MUTATION_RATE {
+                child_two = child_two.single_mutation();
+            }
+            new_chromosomes.push(child_one);
+            new_chromosomes.push(child_two);
         }
 
-        selected
-    }
-
-    pub fn add(&mut self, chromosome: Chromosome) {
-        self.chromosomes.push(chromosome);
+        let mut new_population = Population::new();
+        new_population.chromosomes = new_chromosomes;
+        new_population
     }
 }
 
@@ -295,31 +308,18 @@ impl Simulation {
         }
     }
     pub fn run(&mut self, distances: &Distances, capacities: &Capacities) {
-        let mut new_population = Population::new();
-        let selection = self.population.selection();
-        for i in selection.iter().cloned() {
-            let selected = &self.population.chromosomes[i];
-            let mut rng = rand::thread_rng();
-            let roll: f64 = rng.gen();
-
-            if roll > 0.9 {
-                let other_selected_index = selection[rng.gen_range(0, selection.len())];
-                let other_selected = &self.population.chromosomes[other_selected_index];
-                new_population.add(selected.order_one_crossover(other_selected));
-            } else if roll > 0.6 {
-                new_population.add(selected.get_single_mutation());
-            } else {
-                new_population.add(selected.clone());
-            }
-        }
+        let new_population = self.population.evolve();
         self.population = new_population;
         self.population.evaluate(distances, capacities);
+
         self.generation += 1;
     }
 
     pub fn get_best_solution(&self) -> Solution {
-        let chromosome = &self.population.chromosomes[self.population.scores[0].0];
-        let solution = chromosome.decode();
+        let (index, score) = self.population.scores[0];
+        let chromosome = &self.population.chromosomes[index];
+        let mut solution = chromosome.decode();
+        solution.score = Some(score);
         solution
     }
 
