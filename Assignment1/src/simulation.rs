@@ -6,8 +6,8 @@ use std::i32;
 use crate::problem::{Capacities, Distances};
 use crate::solution::Solution;
 
-use rand::prelude::*;
 use rand::{self, Rng};
+use rayon::prelude::*;
 
 const ELITISM: usize = 2;
 const MUTATION_RATE: f64 = 0.03;
@@ -203,12 +203,14 @@ impl Population {
     }
 
     pub fn evaluate(&mut self, distances: &Distances, capacities: &Capacities) {
-        let mut scores: Vec<(usize, f64)> = Vec::new();
-        for i in 0..self.chromosomes.len() {
-            let chromosome = &self.chromosomes[i];
-            let score = chromosome.evaluate(distances, capacities);
-            scores.push((i, score));
-        }
+        let mut scores: Vec<(usize, f64)> = (0..self.chromosomes.len())
+            .into_par_iter()
+            .map(|i| {
+                let chromosome = &self.chromosomes[i];
+                let score = chromosome.evaluate(distances, capacities);
+                (i, score)
+            })
+            .collect();
 
         scores.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
         self.scores = scores;
@@ -222,15 +224,37 @@ impl Population {
             new_chromosomes.push(elite_chromosome.clone());
         }
 
-        let weights: Vec<f64> = self.scores.iter().map(|tup| 1.0 / tup.1).collect();
-        let selection: Vec<usize> = self.scores.iter().map(|tup| tup.0).collect();
+        // let weights: Vec<f64> = self.scores.iter().map(|tup| 1.0 / tup.1).collect();
+        // let weights: Vec<usize> = (0..self.scores.len()).rev().collect();
+        // let selection: Vec<usize> = self.scores.iter().map(|tup| tup.0).collect();
 
-        let dist = rand::distributions::WeightedIndex::new(&weights).unwrap();
-        let mut rng = rand::thread_rng();
+        // let dist = rand::distributions::WeightedIndex::new(&weights).unwrap();
 
-        while new_chromosomes.len() < self.chromosomes.len() {
-            let parent_one = &self.chromosomes[selection[dist.sample(&mut rng)]];
-            let parent_two = &self.chromosomes[selection[dist.sample(&mut rng)]];
+        let num_scores = self.scores.len();
+
+        let iterations = (self.chromosomes.len() - ELITISM) / 2;
+        new_chromosomes.par_extend((0..iterations).into_par_iter().flat_map(|_| {
+            let mut rng = rand::thread_rng();
+            let one = rng.gen_range(0, num_scores);
+            let two = rng.gen_range(0, num_scores);
+            let three = rng.gen_range(0, num_scores);
+            let four = rng.gen_range(0, num_scores);
+
+            let parent_one: &Chromosome;
+            let parent_two: &Chromosome;
+
+            if self.scores[one].1 < self.scores[two].1 {
+                parent_one = &self.chromosomes[self.scores[one].0];
+            } else {
+                parent_one = &self.chromosomes[self.scores[two].0];
+            }
+
+            if self.scores[three].1 < self.scores[four].1 {
+                parent_two = &self.chromosomes[self.scores[three].0];
+            } else {
+                parent_two = &self.chromosomes[self.scores[four].0];
+            }
+
             let crossover: f64 = rng.gen();
             let (mut child_one, mut child_two);
             if crossover < CROSSOVER_RATE {
@@ -257,9 +281,8 @@ impl Population {
                     child_two = child_two.single_mutation();
                 }
             }
-            new_chromosomes.push(child_one);
-            new_chromosomes.push(child_two);
-        }
+            vec![child_one, child_two]
+        }));
 
         let mut new_population = Population::new();
         new_population.chromosomes = new_chromosomes;
