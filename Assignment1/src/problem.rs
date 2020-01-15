@@ -339,7 +339,8 @@ impl Problem {
         self.calculate_distances();
         self.calculate_capacities();
         for _ in 0..POPULATION_SIZE {
-            let routes = self.random_initial();
+            // let routes = self.random_initial();
+            let routes = self.custom_initial();
             self.simulation.add_solution(routes);
         }
         let distances = self.distances.as_ref().unwrap();
@@ -380,6 +381,38 @@ impl Problem {
     }
 
     fn random_initial(&self) -> Vec<Vec<i32>> {
+        let mut routes = Vec::new();
+        let mut unvisited_customers: Vec<Customer> = self.customers.iter().cloned().collect();
+
+        let mut route_map: HashMap<i32, Vec<i32>> = HashMap::new();
+        for vehicle in self.vehicles.iter() {
+            let mut route = Vec::new();
+            route.push(vehicle.number);
+            route_map.insert(vehicle.number, route);
+        }
+
+        let mut rng = rand::thread_rng();
+
+        while !unvisited_customers.is_empty() {
+            let vehicle = &self.vehicles[rng.gen_range(0, self.vehicles.len())];
+            let route = route_map.get_mut(&vehicle.number).unwrap();
+            let last_stop = route.last().unwrap();
+            let last_pos = self.positions.get(last_stop).unwrap();
+            let customer_index = rng.gen_range(0, unvisited_customers.len());
+            let customer = unvisited_customers.swap_remove(customer_index);
+            route.push(customer.number);
+        }
+
+        for vehicle in self.vehicles.iter() {
+            let mut route = route_map.get(&vehicle.number).unwrap().clone();
+            route.push(vehicle.number);
+            routes.push(route);
+        }
+
+        return routes;
+    }
+
+    fn custom_initial(&self) -> Vec<Vec<i32>> {
         let mut routes = Vec::new();
         let mut unvisited_customers: Vec<Customer> = self.customers.iter().cloned().collect();
 
