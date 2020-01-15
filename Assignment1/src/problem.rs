@@ -340,11 +340,15 @@ impl Problem {
     pub fn generate_population(&mut self) {
         self.calculate_distances();
         self.calculate_capacities();
-        for _ in 0..POPULATION_SIZE {
-            // let routes = self.random_initial();
-            let routes = self.custom_initial();
-            self.simulation.add_solution(routes);
-        }
+
+        self.simulation.population.chromosomes = (0..POPULATION_SIZE)
+            .into_par_iter()
+            .map(|_| {
+                let route = self.custom_initial();
+                Solution::new(route).encode()
+            })
+            .collect();
+
         let distances = self.distances.as_ref().unwrap();
         let capacities = self.capacities.as_ref().unwrap();
         self.simulation.evaluate(&distances, &capacities);
