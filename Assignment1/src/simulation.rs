@@ -244,12 +244,18 @@ impl Population {
             let mutate_one: f64 = rng.gen();
             let mutate_two: f64 = rng.gen();
 
+            let number_of_mutations = rng.gen_range(1, MUTATIONS_MAX);
+
             if mutate_one < MUTATION_RATE {
-                child_one = child_one.single_mutation();
+                for _ in 0..number_of_mutations {
+                    child_one = child_one.single_mutation();
+                }
             }
 
             if mutate_two < MUTATION_RATE {
-                child_two = child_two.single_mutation();
+                for _ in 0..number_of_mutations {
+                    child_two = child_two.single_mutation();
+                }
             }
             new_chromosomes.push(child_one);
             new_chromosomes.push(child_two);
