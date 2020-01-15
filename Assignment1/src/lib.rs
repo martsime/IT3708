@@ -2,6 +2,7 @@
 #[macro_use]
 extern crate approx;
 
+mod parser;
 mod problem;
 mod simulation;
 mod solution;
