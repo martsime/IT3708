@@ -7,7 +7,9 @@ use std::path::Path;
 
 use rand::{self, Rng};
 
-use crate::simulation::Simulation;
+use rayon::prelude::*;
+
+use crate::simulation::{Encode, Simulation};
 use crate::solution::{OptimalSolution, Solution};
 use crate::utils::Pos;
 
