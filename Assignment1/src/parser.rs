@@ -5,8 +5,12 @@ use std::path::Path;
 use std::str::FromStr;
 
 pub fn load(path: &String) -> Vec<Vec<String>> {
-    let path = Path::new(&path);
-    let file = File::open(path).unwrap();
+    let file = match File::open(Path::new(&path)) {
+        Ok(file) => file,
+        Err(err) => {
+            panic!("Error opening file {}. Error: {}", path, err);
+        }
+    };
     let reader = io::BufReader::new(file);
 
     let lines: Vec<Vec<String>> = reader
@@ -19,6 +23,22 @@ pub fn load(path: &String) -> Vec<Vec<String>> {
         })
         .collect();
     lines
+}
+
+pub fn parse_line<T>(line: &Vec<String>, line_number: usize) -> Vec<T>
+where
+    T: FromStr,
+{
+    line.iter()
+        .enumerate()
+        .map(|(i, value)| {
+            let value = match value.parse::<T>() {
+                Ok(val) => val,
+                Err(_) => panic!("Error parsing line {}: {}\n{:?}", line_number, i, line),
+            };
+            value
+        })
+        .collect()
 }
 
 pub fn parse_column<T>(lines: &[Vec<String>], column: usize, line_number: usize) -> Vec<T>

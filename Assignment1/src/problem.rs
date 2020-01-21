@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 use std::f64;
-use std::fs::File;
 use std::i32;
-use std::io::{self, BufRead};
-use std::path::Path;
 
 use rand::{self, Rng};
 
 use rayon::prelude::*;
 
+use crate::parser;
 use crate::simulation::{Encode, Simulation};
 use crate::solution::{OptimalSolution, Solution};
 use crate::utils::Pos;
@@ -80,7 +78,105 @@ impl Clone for Customer {
 
 impl Problem {
     pub fn new(path: String) -> Problem {
-        Problem::load_and_parse(path)
+        let lines = parser::load(&path);
+
+        // Parse problem global settings
+        let first_line = parser::parse_line::<i32>(&lines[0], 1);
+        let max_vehicles = first_line[0];
+        let num_customers = first_line[1];
+        let num_depots = first_line[2];
+
+        // Parse depots
+        let depot_info_lines = &lines[1..=(num_depots as usize)];
+        let depot_pos_start_index = (1 + num_customers + num_depots) as usize;
+        let depot_pos_lines =
+            &lines[depot_pos_start_index..(depot_pos_start_index + num_depots as usize)];
+
+        let depots: Vec<Depot> = depot_info_lines
+            .iter()
+            .enumerate()
+            .map(|(i, line)| {
+                let info_line = parser::parse_line::<i32>(line, i);
+                let _max_duration = match info_line[0] {
+                    0 => None,
+                    val => Some(val),
+                };
+                let capacity = info_line[1];
+                let pos_line = parser::parse_line::<i32>(&depot_pos_lines[i], i);
+                let number = pos_line[0];
+                let pos = Pos {
+                    x: pos_line[1],
+                    y: pos_line[2],
+                };
+                Depot {
+                    capacity,
+                    number,
+                    pos,
+                }
+            })
+            .collect();
+
+        // Parse customers
+        let customer_start_index = (1 + num_depots) as usize;
+        let customer_lines =
+            &lines[customer_start_index..(customer_start_index + num_customers as usize)];
+
+        let customers: Vec<Customer> = customer_lines
+            .iter()
+            .enumerate()
+            .map(|(i, line)| {
+                let line = parser::parse_line::<i32>(line, i);
+                let number = line[0];
+                let pos = Pos {
+                    x: line[1],
+                    y: line[2],
+                };
+                let service_time = match line[3] {
+                    0 => None,
+                    val => Some(val),
+                };
+                let demand = line[4];
+                Customer {
+                    number,
+                    pos,
+                    service_time,
+                    demand,
+                }
+            })
+            .collect();
+
+        let mut positions: HashMap<i32, Pos> = HashMap::new();
+
+        for customer in customers.iter() {
+            positions.insert(customer.number, customer.pos.clone());
+        }
+
+        let mut vehicles: Vec<Vehicle> = Vec::new();
+        let mut vehicle_number: i32 = num_customers + 1;
+        for depot in depots.iter() {
+            for _ in 0..max_vehicles {
+                vehicles.push(Vehicle {
+                    number: vehicle_number,
+                    depot: depot.number,
+                });
+                positions.insert(vehicle_number, depot.pos.clone());
+                vehicle_number += 1;
+            }
+        }
+
+        Problem {
+            path,
+            max_vehicles,
+            num_customers,
+            num_depots,
+            depots,
+            customers,
+            vehicles,
+            positions,
+            simulation: Simulation::new(),
+            optimal_solution: None,
+            model: None,
+        }
     }
 
     pub fn load_optimal_solution(&mut self, path: String) {
@@ -123,136 +219,6 @@ impl Problem {
             capacities.insert(vehicle.number, depot.capacity);
         }
         capacities
-    }
-
-    fn load_and_parse(path: String) -> Problem {
-        let lines = Problem::load(&path);
-
-        // Parse problem global settings
-        let first_line = lines[0].clone();
-        let max_vehicles = first_line[0];
-        let num_customers = first_line[1];
-        let num_depots = first_line[2];
-
-        let depot_info_lines = &lines[1..=(num_customers as usize)];
-        let depot_pos_start_index = (1 + num_customers + num_depots) as usize;
-        let depot_pos_lines =
-            &lines[depot_pos_start_index..(depot_pos_start_index + num_depots as usize)];
-
-        let depots = Problem::parse_depots(depot_info_lines, depot_pos_lines, num_depots);
-
-        let customer_start_index = (1 + num_depots) as usize;
-        let customer_lines =
-            &lines[customer_start_index..(customer_start_index + num_customers as usize)];
-
-        let customers = Problem::parse_customers(customer_lines, num_customers);
-
-        let mut positions: HashMap<i32, Pos> = HashMap::new();
-
-        for customer in customers.iter() {
-            positions.insert(customer.number, customer.pos.clone());
-        }
-
-        let mut vehicles: Vec<Vehicle> = Vec::new();
-        let mut vehicle_number: i32 = num_customers + 1;
-        for depot in depots.iter() {
-            for _ in 0..max_vehicles {
-                vehicles.push(Vehicle {
-                    number: vehicle_number,
-                    depot: depot.number,
-                });
-                positions.insert(vehicle_number, depot.pos.clone());
-                vehicle_number += 1;
-            }
-        }
-
-        Problem {
-            path,
-            max_vehicles,
-            num_customers,
-            num_depots,
-            depots,
-            customers,
-            vehicles,
-            positions,
-            simulation: Simulation::new(),
-            optimal_solution: None,
-            model: None,
-        }
-    }
-
-    fn parse_customers(customer_lines: &[Vec<i32>], num_customers: i32) -> Vec<Customer> {
-        let mut customers: Vec<Customer> = Vec::with_capacity(num_customers as usize);
-
-        // Load all customers
-        for i in 0..num_customers {
-            let line = customer_lines[i as usize].clone();
-            let number = line[0];
-            let pos = Pos {
-                x: line[1],
-                y: line[2],
-            };
-            let service_time = match line[3] {
-                0 => None,
-                val => Some(val),
-            };
-            let demand = line[4];
-            let customer = Customer {
-                number,
-                pos,
-                service_time,
-                demand,
-            };
-            customers.push(customer);
-        }
-        return customers;
-    }
-
-    fn parse_depots(
-        info_lines: &[Vec<i32>],
-        pos_lines: &[Vec<i32>],
-        num_depots: i32,
-    ) -> Vec<Depot> {
-        let mut depots: Vec<Depot> = Vec::with_capacity(num_depots as usize);
-
-        for i in 0..num_depots {
-            let info_line = info_lines[i as usize].clone();
-            let _max_duration = match info_line[0] {
-                0 => None,
-                val => Some(val),
-            };
-            let capacity = info_line[1];
-            let pos_line = pos_lines[i as usize].clone();
-            let number = pos_line[0];
-            let pos = Pos {
-                x: pos_line[1],
-                y: pos_line[2],
-            };
-            let depot = Depot {
-                capacity,
-                number,
-                pos,
-            };
-            depots.push(depot);
-        }
-        return depots;
-    }
-
-    fn load(path: &String) -> Vec<Vec<i32>> {
-        let path = Path::new(&path);
-        let file = File::open(path).unwrap();
-        let reader = io::BufReader::new(file);
-
-        let lines: Vec<Vec<i32>> = reader
-            .lines()
-            .map(|line| {
-                line.unwrap()
-                    .split_whitespace()
-                    .map(|num| num.parse().unwrap())
-                    .collect()
-            })
-            .collect();
-        lines
     }
 
     pub fn get_customers(&self) -> HashMap<i32, (i32, i32)> {
