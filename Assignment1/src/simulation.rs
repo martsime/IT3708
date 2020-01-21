@@ -10,8 +10,9 @@ use rand::{self, Rng};
 use rayon::prelude::*;
 
 const ELITISM: usize = 2;
-const MUTATION_RATE: f64 = 0.03;
-const CROSSOVER_RATE: f64 = 0.5;
+const MUTATION_RATE: f64 = 0.05;
+const MUTATIONS_MAX: usize = 5;
+const CROSSOVER_RATE: f64 = 1.0;
 
 #[derive(Clone, Eq, Hash, PartialEq)]
 pub enum Gene {
