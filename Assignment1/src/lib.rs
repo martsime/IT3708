@@ -12,7 +12,6 @@ use std::collections::HashMap;
 
 use problem::Problem;
 use pyo3::prelude::*;
-use solution::OptimalSolution;
 
 #[pyclass(module = "genetic")]
 struct GeneticProgram {

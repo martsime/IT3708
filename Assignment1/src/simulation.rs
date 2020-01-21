@@ -3,7 +3,7 @@ use std::f64;
 use std::fmt;
 use std::i32;
 
-use crate::problem::{Capacities, Distances};
+use crate::problem::Model;
 use crate::solution::Solution;
 
 use rand::{self, Rng};
@@ -124,9 +124,12 @@ impl Chromosome {
         (child_one, child_two)
     }
 
-    pub fn evaluate(&self, distances: &Distances, capacities: &Capacities) -> f64 {
+    pub fn evaluate(&self, model: &Model) -> f64 {
         let total_genes = self.genes.len();
         let start_index = self.get_first_depot_index().unwrap();
+
+        let distances = &model.distances;
+        let capacities = &model.capacities;
 
         let mut score: f64 = 0.0;
         let mut index = start_index;
@@ -134,7 +137,7 @@ impl Chromosome {
         let mut depot_node = current_node;
         let mut distance_key: (i32, i32);
 
-        let mut capacity_left = capacities.get(&depot_node).unwrap();
+        let mut capacity_left = *capacities.get(&depot_node).unwrap();
 
         loop {
             index = (index + 1) % total_genes;
@@ -144,16 +147,16 @@ impl Chromosome {
                     distance_key = (current_node, depot_node);
                     current_node = node;
                     depot_node = node;
-                    capacity_left = capacities.get(&depot_node).unwrap();
+                    capacity_left = *capacities.get(&depot_node).unwrap();
                 }
                 Gene::Customer(node) => {
                     distance_key = (current_node, node);
                     current_node = node;
-                    capacity_left -= capacities.get(&current_node).unwrap();
+                    capacity_left -= *capacities.get(&current_node).unwrap();
                 }
             }
             let distance: f64 = match distances.get(&distance_key) {
-                Some(val) => val,
+                Some(val) => *val,
                 None => {
                     panic!("Unable to find distance: {:?}", distance_key);
                 }
@@ -203,12 +206,12 @@ impl Population {
         }
     }
 
-    pub fn evaluate(&mut self, distances: &Distances, capacities: &Capacities) {
+    pub fn evaluate(&mut self, model: &Model) {
         let mut scores: Vec<(usize, f64)> = (0..self.chromosomes.len())
             .into_par_iter()
             .map(|i| {
                 let chromosome = &self.chromosomes[i];
-                let score = chromosome.evaluate(distances, capacities);
+                let score = chromosome.evaluate(model);
                 (i, score)
             })
             .collect();
@@ -340,10 +343,10 @@ impl Simulation {
             generation: 1,
         }
     }
-    pub fn run(&mut self, distances: &Distances, capacities: &Capacities) {
+    pub fn run(&mut self, model: &Model) {
         let new_population = self.population.evolve();
         self.population = new_population;
-        self.population.evaluate(distances, capacities);
+        self.population.evaluate(model);
 
         self.generation += 1;
     }
@@ -362,8 +365,8 @@ impl Simulation {
         self.population.chromosomes.push(chromosome);
     }
 
-    pub fn evaluate(&mut self, distances: &Distances, capacities: &Capacities) {
-        self.population.evaluate(distances, capacities);
+    pub fn evaluate(&mut self, model: &Model) {
+        self.population.evaluate(model);
     }
 }
 

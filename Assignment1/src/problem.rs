@@ -23,7 +23,6 @@ struct Customer {
 }
 
 struct Depot {
-    max_duration: Option<i32>,
     capacity: i32,
     pub number: i32,
     pub pos: Pos,
@@ -49,30 +48,9 @@ impl Vehicle {
     }
 }
 
-pub struct Distances {
-    pub map: HashMap<(i32, i32), f64>,
-}
-
-impl Distances {
-    pub fn get(&self, key: &(i32, i32)) -> Option<f64> {
-        match self.map.get(key) {
-            Some(val) => Some(*val),
-            None => None,
-        }
-    }
-}
-
-pub struct Capacities {
-    pub map: HashMap<i32, i32>,
-}
-
-impl Capacities {
-    pub fn get(&self, key: &i32) -> Option<i32> {
-        match self.map.get(key) {
-            Some(val) => Some(*val),
-            None => None,
-        }
-    }
+pub struct Model {
+    pub distances: HashMap<(i32, i32), f64>,
+    pub capacities: HashMap<i32, i32>,
 }
 
 pub struct Problem {
@@ -85,9 +63,8 @@ pub struct Problem {
     vehicles: Vec<Vehicle>,
     pub simulation: Simulation,
     optimal_solution: Option<OptimalSolution>,
-    distances: Option<Distances>,
-    capacities: Option<Capacities>,
     positions: HashMap<i32, Pos>,
+    model: Option<Model>,
 }
 
 impl Clone for Customer {
@@ -111,7 +88,7 @@ impl Problem {
         self.optimal_solution = Some(optimal_solution);
     }
 
-    pub fn calculate_distances(&mut self) {
+    pub fn calculate_distances(&self) -> HashMap<(i32, i32), f64> {
         let mut distances: HashMap<(i32, i32), f64> = HashMap::new();
         let mut positions: HashMap<i32, Pos> = HashMap::new();
         for customer in self.customers.iter() {
@@ -132,10 +109,10 @@ impl Problem {
             }
         }
 
-        self.distances = Some(Distances { map: distances });
+        distances
     }
 
-    pub fn calculate_capacities(&mut self) {
+    pub fn calculate_capacities(&self) -> HashMap<i32, i32> {
         let mut capacities: HashMap<i32, i32> = HashMap::new();
         for customer in self.customers.iter() {
             capacities.insert(customer.number, customer.demand);
@@ -145,7 +122,7 @@ impl Problem {
             let depot = vehicle.get_depot(&self.depots);
             capacities.insert(vehicle.number, depot.capacity);
         }
-        self.capacities = Some(Capacities { map: capacities });
+        capacities
     }
 
     fn load_and_parse(path: String) -> Problem {
@@ -200,8 +177,7 @@ impl Problem {
             positions,
             simulation: Simulation::new(),
             optimal_solution: None,
-            distances: None,
-            capacities: None,
+            model: None,
         }
     }
 
@@ -241,7 +217,7 @@ impl Problem {
 
         for i in 0..num_depots {
             let info_line = info_lines[i as usize].clone();
-            let max_duration = match info_line[0] {
+            let _max_duration = match info_line[0] {
                 0 => None,
                 val => Some(val),
             };
@@ -253,7 +229,6 @@ impl Problem {
                 y: pos_line[2],
             };
             let depot = Depot {
-                max_duration,
                 capacity,
                 number,
                 pos,
@@ -338,9 +313,7 @@ impl Problem {
     }
 
     pub fn generate_population(&mut self) {
-        self.calculate_distances();
-        self.calculate_capacities();
-
+        self.create_model();
         self.simulation.population.chromosomes = (0..POPULATION_SIZE)
             .into_par_iter()
             .map(|_| {
@@ -349,16 +322,24 @@ impl Problem {
             })
             .collect();
 
-        let distances = self.distances.as_ref().unwrap();
-        let capacities = self.capacities.as_ref().unwrap();
-        self.simulation.evaluate(&distances, &capacities);
+        let model = self.model.as_ref().unwrap();
+        self.simulation.evaluate(model);
+    }
+
+    pub fn create_model(&mut self) {
+        self.model = Some(Model {
+            distances: self.calculate_distances(),
+            capacities: self.calculate_capacities(),
+        });
     }
 
     pub fn simulate(&mut self) -> Solution {
-        let distances = self.distances.as_ref().unwrap();
-        let capacities = self.capacities.as_ref().unwrap();
-        self.simulation.run(distances, capacities);
-        let mut solution = self.simulation.get_best_solution();
+        let model = self.model.as_ref().unwrap();
+        let mut solution: Solution = self.simulation.get_best_solution();
+        for _ in 0..UPDATE_RATE {
+            self.simulation.run(model);
+            solution = self.simulation.get_best_solution();
+        }
 
         for route in solution.routes.iter_mut() {
             for stop in route.iter_mut() {

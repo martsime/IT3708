@@ -3,7 +3,7 @@ use std::fmt;
 use std::collections::HashMap;
 
 use crate::parser;
-use crate::problem::{Capacities, Distances, Problem};
+use crate::problem::{Model, Problem};
 use crate::simulation::{Chromosome, Encode, Gene};
 
 pub struct Solution {
@@ -18,9 +18,9 @@ impl Solution {
             score: None,
         }
     }
-    pub fn evaluate(&self, distances: &Distances, capacities: &Capacities) -> f64 {
+    pub fn evaluate(&self, model: &Model) -> f64 {
         let chromosome = self.encode();
-        chromosome.evaluate(distances, capacities)
+        chromosome.evaluate(model)
     }
 }
 
