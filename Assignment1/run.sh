@@ -3,6 +3,9 @@
 LIB="genetic.so"
 PROGRAM="mainqt.py"
 
+# Env variables
+export RAYON_NUM_THREADS=11
+
 # Build library
 cargo build --release
 
