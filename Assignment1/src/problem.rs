@@ -434,6 +434,62 @@ impl Problem {
         return depot_map;
     }
 
+    fn depot_initial(&self) -> Vec<Vec<i32>> {
+        let mut routes = Vec::new();
+
+        let mut depot_map = self.map_customers_to_depot();
+
+        let mut rng = rand::thread_rng();
+        for (_, value) in depot_map.iter_mut() {
+            value.shuffle(&mut rng);
+        }
+
+        let mut route_map: HashMap<i32, Vec<i32>> = HashMap::new();
+        for vehicle in self.vehicles.iter() {
+            let mut route = Vec::new();
+            route.push(vehicle.number);
+            route_map.insert(vehicle.number, route);
+        }
+
+        fn customers_left(depot_map: &HashMap<i32, Vec<Customer>>) -> bool {
+            for (_, value) in depot_map.iter() {
+                if value.len() > 0 {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        while customers_left(&depot_map) {
+            let vehicle = &self.vehicles[rng.gen_range(0, self.vehicles.len())];
+
+            let mut unvisited_customers = depot_map.get_mut(&vehicle.depot).unwrap();
+            let route = route_map.get_mut(&vehicle.number).unwrap();
+            let last_stop = route.last().unwrap();
+            let last_pos = self.positions.get(last_stop).unwrap();
+            let closest_customer =
+                self.get_closest_customer(&last_pos, &mut unvisited_customers, 100000);
+            match closest_customer {
+                Some(c) => route.push(c.number),
+                None => {}
+            }
+        }
+
+        for vehicle in self.vehicles.iter() {
+            let mut route = route_map.get(&vehicle.number).unwrap().clone();
+            route.push(vehicle.number);
+            routes.push(route);
+        }
+
+        for (key, value) in depot_map.iter() {
+            if value.len() > 0 {
+                println!("ERROR: Unserved customers at depot: {}", key);
+            }
+        }
+
+        return routes;
+    }
+
     fn get_closest_customer(
         &self,
         point: &Pos,
