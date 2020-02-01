@@ -68,13 +68,65 @@ impl Chromosome {
         index
     }
 
-    pub fn single_mutation(&self) -> Chromosome {
+    pub fn single_swap_mutation(&self) -> Chromosome {
         let mut new_chromosome = self.clone();
         let chromosome_length = new_chromosome.genes.len();
         let mut rng = rand::thread_rng();
         let index_one = rng.gen_range(0, chromosome_length);
         let index_two = rng.gen_range(0, chromosome_length);
         new_chromosome.genes.swap(index_one, index_two);
+        new_chromosome
+    }
+
+    pub fn remove_vehicle_mutation(&self) -> Chromosome {
+        let mut rng = rand::thread_rng();
+        let mut new_chromosome = self.clone();
+
+        let mut index = rng.gen_range(0, new_chromosome.genes.len());
+
+        let mut vehicle: Option<usize> = None;
+
+        //println!("Before: {}", new_chromosome);
+        let mut count = 0;
+
+        let gene_length = new_chromosome.genes.len();
+        loop {
+            //println!("Checking index: {}", index);
+            match vehicle {
+                // Find first vehicle after index
+                None => {
+                    let gene = &new_chromosome.genes[index];
+                    match gene {
+                        Gene::Depot(_) => {
+                            vehicle = Some(index);
+                            // println!("Found vehicle at index: {}", index);
+                        }
+                        _ => {}
+                    }
+                }
+                // If depot, bubble sort it until it is next to another depot
+                Some(vehicle_index) => {
+                    let next_index = (index + 1) % gene_length;
+                    let next_gene = &new_chromosome.genes[next_index];
+                    match next_gene {
+                        Gene::Depot(_) => {
+                            break;
+                        }
+                        _ => {
+                            new_chromosome.genes.swap(vehicle_index, next_index);
+                            vehicle = Some(next_index);
+                        }
+                    }
+                }
+            }
+            index = (index + 1) % gene_length;
+            count += 1;
+            if count > 1000 {
+                panic!("Ups");
+            }
+        }
+        // println!("After: {}", new_chromosome);
+
         new_chromosome
     }
 
@@ -210,9 +262,9 @@ impl Population {
 
         scores.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
         self.scores = scores;
-        println!("SCORES: ");
+        // println!("SCORES: ");
         for score in self.scores.iter() {
-            println!("{:?}", score);
+            // println!("{:?}", score);
         }
     }
 
@@ -284,13 +336,14 @@ impl Population {
 
             if mutate_one < CONFIG.mutation_rate {
                 for _ in 0..number_of_mutations {
-                    child_one = child_one.single_mutation();
+                    // child_one = child_one.single_swap_mutation();
+                    child_one = child_one.remove_vehicle_mutation();
                 }
             }
 
             if mutate_two < CONFIG.mutation_rate {
                 for _ in 0..number_of_mutations {
-                    child_two = child_two.single_mutation();
+                    child_two = child_two.single_swap_mutation();
                 }
             }
             vec![child_one, child_two]
