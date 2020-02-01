@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::f64;
 use std::i32;
 
+use rand::seq::SliceRandom;
 use rand::{self, Rng};
 
 use rayon::prelude::*;
@@ -21,12 +22,13 @@ struct Customer {
 }
 
 struct Depot {
-    capacity: i32,
+    pub capacity: i32,
     pub number: i32,
     pub pos: Pos,
 }
 
 struct Vehicle {
+    pub capacity: i32,
     pub number: i32,
     pub depot: i32,
 }
@@ -158,13 +160,14 @@ impl Problem {
                 vehicles.push(Vehicle {
                     number: vehicle_number,
                     depot: depot.number,
+                    capacity: depot.capacity,
                 });
                 positions.insert(vehicle_number, depot.pos.clone());
                 vehicle_number += 1;
             }
         }
 
-        Problem {
+        let mut problem = Problem {
             path,
             max_vehicles,
             num_customers,
@@ -176,7 +179,9 @@ impl Problem {
             simulation: Simulation::new(),
             optimal_solution: None,
             model: None,
-        }
+        };
+        problem.create_model();
+        return problem;
     }
 
     pub fn load_optimal_solution(&mut self, path: String) {
@@ -396,6 +401,37 @@ impl Problem {
         }
 
         return routes;
+    }
+
+    fn map_customers_to_depot(&self) -> HashMap<i32, Vec<Customer>> {
+        // Assigns customers to the closest depot
+        let mut depot_map: HashMap<i32, Vec<Customer>> = HashMap::new();
+
+        for customer in self.customers.iter() {
+            let mut distance = f64::MAX;
+            let mut closest_depot: Option<&Depot> = None;
+            for depot in self.depots.iter() {
+                let new_distance = customer.pos.distance_to(&depot.pos);
+                if new_distance < distance {
+                    distance = new_distance;
+                    closest_depot = Some(depot);
+                }
+            }
+            match closest_depot {
+                None => panic!("Failed to find closest depot!"),
+                Some(depot) => match depot_map.get_mut(&depot.number) {
+                    None => {
+                        let mut new_depot_list = Vec::new();
+                        new_depot_list.push(customer.clone());
+                        depot_map.insert(depot.number, new_depot_list);
+                    }
+                    Some(depot_list) => {
+                        depot_list.push(customer.clone());
+                    }
+                },
+            }
+        }
+        return depot_map;
     }
 
     fn get_closest_customer(
