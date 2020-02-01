@@ -5,14 +5,10 @@ use std::i32;
 
 use crate::problem::Model;
 use crate::solution::Solution;
+use crate::CONFIG;
 
 use rand::{self, Rng};
 use rayon::prelude::*;
-
-const ELITISM: usize = 2;
-const MUTATION_RATE: f64 = 0.05;
-const MUTATIONS_MAX: usize = 5;
-const CROSSOVER_RATE: f64 = 1.0;
 
 #[derive(Clone, Eq, Hash, PartialEq)]
 pub enum Gene {
@@ -223,7 +219,7 @@ impl Population {
     pub fn evolve(&self) -> Population {
         let mut new_chromosomes: Vec<Chromosome> = Vec::with_capacity(self.chromosomes.len());
 
-        for i in 0..ELITISM {
+        for i in 0..CONFIG.elite_count {
             let elite_chromosome = &self.chromosomes[self.scores[i].0];
             new_chromosomes.push(elite_chromosome.clone());
         }
@@ -236,7 +232,7 @@ impl Population {
 
         let num_scores = self.scores.len();
 
-        let iterations = (self.chromosomes.len() - ELITISM) / 2;
+        let iterations = (self.chromosomes.len() - CONFIG.elite_count) / 2;
         new_chromosomes.par_extend((0..iterations).into_par_iter().flat_map(|_| {
             let mut rng = rand::thread_rng();
             let one = rng.gen_range(0, num_scores);
@@ -261,7 +257,7 @@ impl Population {
 
             let crossover: f64 = rng.gen();
             let (mut child_one, mut child_two);
-            if crossover < CROSSOVER_RATE {
+            if crossover < CONFIG.crossover_rate {
                 let (a, b) = parent_one.order_one_crossover(parent_two);
                 child_one = a;
                 child_two = b;
@@ -272,15 +268,15 @@ impl Population {
             let mutate_one: f64 = rng.gen();
             let mutate_two: f64 = rng.gen();
 
-            let number_of_mutations = rng.gen_range(1, MUTATIONS_MAX);
+            let number_of_mutations = rng.gen_range(1, CONFIG.mutation_num_max);
 
-            if mutate_one < MUTATION_RATE {
+            if mutate_one < CONFIG.mutation_rate {
                 for _ in 0..number_of_mutations {
                     child_one = child_one.single_mutation();
                 }
             }
 
-            if mutate_two < MUTATION_RATE {
+            if mutate_two < CONFIG.mutation_rate {
                 for _ in 0..number_of_mutations {
                     child_two = child_two.single_mutation();
                 }

@@ -2,6 +2,9 @@
 #[macro_use]
 extern crate approx;
 
+#[macro_use]
+extern crate envconfig_derive;
+
 mod parser;
 mod problem;
 mod simulation;
@@ -53,4 +56,35 @@ impl GeneticProgram {
 fn genetic(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<GeneticProgram>()?;
     Ok(())
+}
+
+use envconfig::Envconfig;
+use lazy_static::*;
+
+#[derive(Envconfig)]
+pub struct Config {
+    #[envconfig(from = "POPULATION_SIZE", default = "50")]
+    pub population_size: i32,
+
+    #[envconfig(from = "DRAW_RATE", default = "1")]
+    pub draw_rate: i32,
+
+    #[envconfig(from = "ELITE_COUNT", default = "2")]
+    pub elite_count: usize,
+
+    #[envconfig(from = "MUTATION_RATE", default = "0.05")]
+    pub mutation_rate: f64,
+
+    #[envconfig(from = "MUTATION_NUM_MAX", default = "5")]
+    pub mutation_num_max: usize,
+
+    #[envconfig(from = "CROSSOVER_RATE", default = "1.0")]
+    pub crossover_rate: f64,
+
+    #[envconfig(from = "PARENT_SELECTION_K", default = "5")]
+    pub parent_selection_k: usize,
+}
+
+lazy_static! {
+    pub static ref CONFIG: Config = Config::init().unwrap();
 }

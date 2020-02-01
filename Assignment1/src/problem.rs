@@ -11,8 +11,7 @@ use crate::parser;
 use crate::simulation::{Encode, Simulation};
 use crate::solution::{OptimalSolution, Solution};
 use crate::utils::Pos;
-
-const POPULATION_SIZE: i32 = 1000;
+use crate::CONFIG;
 
 struct Customer {
     pub number: i32,
@@ -284,8 +283,7 @@ impl Problem {
     }
 
     pub fn generate_population(&mut self) {
-        self.create_model();
-        self.simulation.population.chromosomes = (0..POPULATION_SIZE)
+        self.simulation.population.chromosomes = (0..CONFIG.population_size)
             .into_par_iter()
             .map(|_| {
                 let route = self.custom_initial();
@@ -307,7 +305,7 @@ impl Problem {
     pub fn simulate(&mut self) -> Solution {
         let model = self.model.as_ref().unwrap();
         let mut solution: Solution = self.simulation.get_best_solution();
-        for _ in 0..UPDATE_RATE {
+        for _ in 0..CONFIG.draw_rate {
             self.simulation.run(model);
             solution = self.simulation.get_best_solution();
         }
