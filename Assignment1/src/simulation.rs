@@ -46,17 +46,10 @@ impl fmt::Debug for Gene {
 #[derive(Clone)]
 pub struct Chromosome {
     pub genes: Vec<Gene>,
+    pub score: Option<f64>,
 }
 
 impl Chromosome {
-    pub fn new() -> Chromosome {
-        Chromosome { genes: Vec::new() }
-    }
-
-    pub fn from_vec(vec: Vec<Gene>) -> Chromosome {
-        Chromosome { genes: vec }
-    }
-
     fn get_first_depot_index(&self) -> Option<usize> {
         let mut index: Option<usize> = None;
 
@@ -120,7 +113,7 @@ impl Chromosome {
         (child_one, child_two)
     }
 
-    pub fn evaluate(&self, model: &Model) -> f64 {
+    pub fn evaluate(&mut self, model: &Model) -> f64 {
         let total_genes = self.genes.len();
         let start_index = self.get_first_depot_index().unwrap();
 
@@ -167,6 +160,8 @@ impl Chromosome {
                 break;
             }
         }
+
+        self.score = Some(score);
         score
     }
 }
@@ -203,10 +198,11 @@ impl Population {
     }
 
     pub fn evaluate(&mut self, model: &Model) {
-        let mut scores: Vec<(usize, f64)> = (0..self.chromosomes.len())
-            .into_par_iter()
-            .map(|i| {
-                let chromosome = &self.chromosomes[i];
+        let mut scores: Vec<(usize, f64)> = self
+            .chromosomes
+            .par_iter_mut()
+            .enumerate()
+            .map(|(i, chromosome)| {
                 let score = chromosome.evaluate(model);
                 (i, score)
             })
@@ -214,6 +210,38 @@ impl Population {
 
         scores.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
         self.scores = scores;
+        println!("SCORES: ");
+        for score in self.scores.iter() {
+            println!("{:?}", score);
+        }
+    }
+
+    fn parent_selection(&self) -> &Chromosome {
+        // Selects the best parent out of K random selected parents
+        let mut rng = rand::thread_rng();
+        let indices: Vec<usize> = (0..CONFIG.parent_selection_k)
+            .map(|_| rng.gen_range(0, CONFIG.population_size) as usize)
+            .collect();
+
+        let mut best_parent_score: f64 = f64::MAX;
+        let mut best_parent: Option<&Chromosome> = None;
+        for index in indices {
+            let parent = &self.chromosomes[index];
+            let score = match parent.score {
+                Some(score) => score,
+                None => f64::MAX,
+            };
+            if score < best_parent_score {
+                best_parent = Some(parent);
+                best_parent_score = score;
+            }
+        }
+        match best_parent {
+            Some(parent) => parent,
+            None => {
+                panic!("Error in parent selection");
+            }
+        }
     }
 
     pub fn evolve(&self) -> Population {
@@ -235,25 +263,9 @@ impl Population {
         let iterations = (self.chromosomes.len() - CONFIG.elite_count) / 2;
         new_chromosomes.par_extend((0..iterations).into_par_iter().flat_map(|_| {
             let mut rng = rand::thread_rng();
-            let one = rng.gen_range(0, num_scores);
-            let two = rng.gen_range(0, num_scores);
-            let three = rng.gen_range(0, num_scores);
-            let four = rng.gen_range(0, num_scores);
 
-            let parent_one: &Chromosome;
-            let parent_two: &Chromosome;
-
-            if self.scores[one].1 < self.scores[two].1 {
-                parent_one = &self.chromosomes[self.scores[one].0];
-            } else {
-                parent_one = &self.chromosomes[self.scores[two].0];
-            }
-
-            if self.scores[three].1 < self.scores[four].1 {
-                parent_two = &self.chromosomes[self.scores[three].0];
-            } else {
-                parent_two = &self.chromosomes[self.scores[four].0];
-            }
+            let parent_one: &Chromosome = self.parent_selection();
+            let parent_two: &Chromosome = self.parent_selection();
 
             let crossover: f64 = rng.gen();
             let (mut child_one, mut child_two);

@@ -19,7 +19,7 @@ impl Solution {
         }
     }
     pub fn evaluate(&self, model: &Model) -> f64 {
-        let chromosome = self.encode();
+        let mut chromosome = self.encode();
         chromosome.evaluate(model)
     }
 }
@@ -38,7 +38,7 @@ impl Encode for Solution {
                 genes.push(Gene::Customer(route[i]));
             }
         }
-        Chromosome { genes }
+        Chromosome { genes, score: None }
     }
 }
 
