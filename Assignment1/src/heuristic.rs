@@ -4,9 +4,9 @@ use std::fmt;
 
 use rand::{self, Rng};
 
+use crate::config::CONFIG;
 use crate::problem::{Depot, Model, Problem};
 use crate::utils::Pos;
-use crate::CONFIG;
 
 #[derive(PartialEq)]
 struct Route {

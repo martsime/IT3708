@@ -3,9 +3,9 @@ use std::f64;
 use std::fmt;
 use std::i32;
 
+use crate::config::CONFIG;
 use crate::problem::Model;
 use crate::solution::Solution;
-use crate::CONFIG;
 
 use rand::{self, Rng};
 use rayon::prelude::*;

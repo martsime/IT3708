@@ -8,12 +8,12 @@ use rand::{self, Rng};
 
 use rayon::prelude::*;
 
+use crate::config::CONFIG;
 use crate::heuristic;
 use crate::parser;
 use crate::simulation::{Encode, Simulation};
 use crate::solution::{OptimalSolution, Solution};
 use crate::utils::Pos;
-use crate::CONFIG;
 
 pub struct Customer {
     pub number: i32,
