@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::f64;
+use std::hash::{Hash, Hasher};
 use std::i32;
 
 use rand::seq::SliceRandom;
@@ -7,26 +8,34 @@ use rand::{self, Rng};
 
 use rayon::prelude::*;
 
+use crate::heuristic;
 use crate::parser;
 use crate::simulation::{Encode, Simulation};
 use crate::solution::{OptimalSolution, Solution};
 use crate::utils::Pos;
 use crate::CONFIG;
 
-struct Customer {
+pub struct Customer {
     pub number: i32,
     pub pos: Pos,
     service_time: Option<i32>,
     demand: i32,
 }
 
-struct Depot {
+#[derive(Eq, PartialEq)]
+pub struct Depot {
     pub capacity: i32,
     pub number: i32,
     pub pos: Pos,
 }
 
-struct Vehicle {
+impl Hash for Depot {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.number.hash(state);
+    }
+}
+
+pub struct Vehicle {
     pub capacity: i32,
     pub number: i32,
     pub depot: i32,
@@ -50,6 +59,7 @@ impl Vehicle {
 pub struct Model {
     pub distances: HashMap<(i32, i32), f64>,
     pub capacities: HashMap<i32, i32>,
+    pub positions: HashMap<i32, Pos>,
 }
 
 pub struct Problem {
@@ -59,10 +69,9 @@ pub struct Problem {
     pub num_depots: i32,   // Number of depots
     customers: Vec<Customer>,
     depots: Vec<Depot>,
-    vehicles: Vec<Vehicle>,
+    pub vehicles: Vec<Vehicle>,
     pub simulation: Simulation,
     optimal_solution: Option<OptimalSolution>,
-    positions: HashMap<i32, Pos>,
     model: Option<Model>,
 }
 
@@ -146,12 +155,6 @@ impl Problem {
             })
             .collect();
 
-        let mut positions: HashMap<i32, Pos> = HashMap::new();
-
-        for customer in customers.iter() {
-            positions.insert(customer.number, customer.pos.clone());
-        }
-
         let mut vehicles: Vec<Vehicle> = Vec::new();
         let mut vehicle_number: i32 = num_customers + 1;
         for depot in depots.iter() {
@@ -161,7 +164,6 @@ impl Problem {
                     depot: depot.number,
                     capacity: depot.capacity,
                 });
-                positions.insert(vehicle_number, depot.pos.clone());
                 vehicle_number += 1;
             }
         }
@@ -174,7 +176,6 @@ impl Problem {
             depots,
             customers,
             vehicles,
-            positions,
             simulation: Simulation::new(),
             optimal_solution: None,
             model: None,
@@ -223,6 +224,18 @@ impl Problem {
             capacities.insert(vehicle.number, depot.capacity);
         }
         capacities
+    }
+
+    pub fn calculate_positions(&self) -> HashMap<i32, Pos> {
+        let mut map = HashMap::new();
+        for customer in self.customers.iter() {
+            map.insert(customer.number, customer.pos.clone());
+        }
+        for depot in self.depots.iter() {
+            map.insert(depot.number, depot.pos.clone());
+        }
+
+        return map;
     }
 
     pub fn get_customers(&self) -> HashMap<i32, (i32, i32)> {
@@ -283,15 +296,16 @@ impl Problem {
     }
 
     pub fn generate_population(&mut self) {
+        let model = self.model.as_ref().unwrap();
         self.simulation.population.chromosomes = (0..CONFIG.population_size)
             .into_par_iter()
             .map(|_| {
-                let route = self.custom_initial();
+                let route = heuristic::savings_init(&model, &self);
+                // println!("Generated: {}", i);
                 Solution::new(route).encode()
             })
             .collect();
 
-        let model = self.model.as_ref().unwrap();
         self.simulation.evaluate(model);
     }
 
@@ -299,6 +313,7 @@ impl Problem {
         self.model = Some(Model {
             distances: self.calculate_distances(),
             capacities: self.calculate_capacities(),
+            positions: self.calculate_positions(),
         });
     }
 
@@ -322,7 +337,12 @@ impl Problem {
                     if let None = vehicle {
                         panic!("Vehicle for stop {} not found!", stop);
                     }
-                    let depot_number = vehicle.unwrap().depot;
+                    let depot_number = match vehicle {
+                        Some(v) => v.depot,
+                        None => {
+                            panic!("No vehicle found!");
+                        }
+                    };
                     *stop = depot_number;
                 }
             }
@@ -353,7 +373,13 @@ impl Problem {
             let vehicle = &self.vehicles[rng.gen_range(0, self.vehicles.len())];
             let route = route_map.get_mut(&vehicle.number).unwrap();
             let last_stop = route.last().unwrap();
-            let last_pos = self.positions.get(last_stop).unwrap();
+            let last_pos = &self
+                .model
+                .as_ref()
+                .unwrap()
+                .positions
+                .get(last_stop)
+                .unwrap();
             let customer_index = rng.gen_range(0, unvisited_customers.len());
             let customer = unvisited_customers.swap_remove(customer_index);
             route.push(customer.number);
@@ -385,7 +411,13 @@ impl Problem {
             let vehicle = &self.vehicles[rng.gen_range(0, self.vehicles.len())];
             let route = route_map.get_mut(&vehicle.number).unwrap();
             let last_stop = route.last().unwrap();
-            let last_pos = self.positions.get(last_stop).unwrap();
+            let last_pos = &self
+                .model
+                .as_ref()
+                .unwrap()
+                .positions
+                .get(last_stop)
+                .unwrap();
             let closest_customer = self
                 .get_closest_customer(&last_pos, &mut unvisited_customers, 1000)
                 .unwrap();
@@ -401,9 +433,9 @@ impl Problem {
         return routes;
     }
 
-    fn map_customers_to_depot(&self) -> HashMap<i32, Vec<Customer>> {
+    pub fn map_customers_to_depot(&self) -> HashMap<&Depot, Vec<Customer>> {
         // Assigns customers to the closest depot
-        let mut depot_map: HashMap<i32, Vec<Customer>> = HashMap::new();
+        let mut depot_map: HashMap<&Depot, Vec<Customer>> = HashMap::new();
 
         for customer in self.customers.iter() {
             let mut distance = f64::MAX;
@@ -417,11 +449,11 @@ impl Problem {
             }
             match closest_depot {
                 None => panic!("Failed to find closest depot!"),
-                Some(depot) => match depot_map.get_mut(&depot.number) {
+                Some(depot) => match depot_map.get_mut(&depot) {
                     None => {
                         let mut new_depot_list = Vec::new();
                         new_depot_list.push(customer.clone());
-                        depot_map.insert(depot.number, new_depot_list);
+                        depot_map.insert(depot, new_depot_list);
                     }
                     Some(depot_list) => {
                         depot_list.push(customer.clone());
@@ -449,7 +481,7 @@ impl Problem {
             route_map.insert(vehicle.number, route);
         }
 
-        fn customers_left(depot_map: &HashMap<i32, Vec<Customer>>) -> bool {
+        fn customers_left(depot_map: &HashMap<&Depot, Vec<Customer>>) -> bool {
             for (_, value) in depot_map.iter() {
                 if value.len() > 0 {
                     return true;
@@ -461,10 +493,17 @@ impl Problem {
         while customers_left(&depot_map) {
             let vehicle = &self.vehicles[rng.gen_range(0, self.vehicles.len())];
 
-            let mut unvisited_customers = depot_map.get_mut(&vehicle.depot).unwrap();
+            let depot = &vehicle.get_depot(&self.depots);
+            let mut unvisited_customers = depot_map.get_mut(depot).unwrap();
             let route = route_map.get_mut(&vehicle.number).unwrap();
             let last_stop = route.last().unwrap();
-            let last_pos = self.positions.get(last_stop).unwrap();
+            let last_pos = &self
+                .model
+                .as_ref()
+                .unwrap()
+                .positions
+                .get(last_stop)
+                .unwrap();
             let closest_customer =
                 self.get_closest_customer(&last_pos, &mut unvisited_customers, 100000);
             match closest_customer {
@@ -481,7 +520,7 @@ impl Problem {
 
         for (key, value) in depot_map.iter() {
             if value.len() > 0 {
-                println!("ERROR: Unserved customers at depot: {}", key);
+                println!("ERROR: Unserved customers at depot: {}", key.number);
             }
         }
 

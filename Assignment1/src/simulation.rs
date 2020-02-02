@@ -82,16 +82,14 @@ impl Chromosome {
         let mut rng = rand::thread_rng();
         let mut new_chromosome = self.clone();
 
-        let mut index = rng.gen_range(0, new_chromosome.genes.len());
+        let gene_length = new_chromosome.genes.len();
+        let mut index = rng.gen_range(0, gene_length);
 
         let mut vehicle: Option<usize> = None;
 
-        //println!("Before: {}", new_chromosome);
         let mut count = 0;
 
-        let gene_length = new_chromosome.genes.len();
         loop {
-            //println!("Checking index: {}", index);
             match vehicle {
                 // Find first vehicle after index
                 None => {
@@ -99,7 +97,6 @@ impl Chromosome {
                     match gene {
                         Gene::Depot(_) => {
                             vehicle = Some(index);
-                            // println!("Found vehicle at index: {}", index);
                         }
                         _ => {}
                     }
@@ -121,11 +118,10 @@ impl Chromosome {
             }
             index = (index + 1) % gene_length;
             count += 1;
-            if count > 1000 {
-                panic!("Ups");
+            if count > 10000 {
+                panic!("Stuck in remove vehicle loop");
             }
         }
-        // println!("After: {}", new_chromosome);
 
         new_chromosome
     }
@@ -263,9 +259,9 @@ impl Population {
         scores.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
         self.scores = scores;
         // println!("SCORES: ");
-        for score in self.scores.iter() {
-            // println!("{:?}", score);
-        }
+        // for score in self.scores.iter() {
+        // println!("{:?}", score);
+        // }
     }
 
     fn parent_selection(&self) -> &Chromosome {
@@ -304,15 +300,8 @@ impl Population {
             new_chromosomes.push(elite_chromosome.clone());
         }
 
-        // let weights: Vec<f64> = self.scores.iter().map(|tup| 1.0 / tup.1).collect();
-        // let weights: Vec<usize> = (0..self.scores.len()).rev().collect();
-        // let selection: Vec<usize> = self.scores.iter().map(|tup| tup.0).collect();
-
-        // let dist = rand::distributions::WeightedIndex::new(&weights).unwrap();
-
-        let num_scores = self.scores.len();
-
         let iterations = (self.chromosomes.len() - CONFIG.elite_count) / 2;
+
         new_chromosomes.par_extend((0..iterations).into_par_iter().flat_map(|_| {
             let mut rng = rand::thread_rng();
 
@@ -320,7 +309,7 @@ impl Population {
             let parent_two: &Chromosome = self.parent_selection();
 
             let crossover: f64 = rng.gen();
-            let (mut child_one, mut child_two);
+            let (child_one, child_two);
             if crossover < CONFIG.crossover_rate {
                 let (a, b) = parent_one.order_one_crossover(parent_two);
                 child_one = a;
@@ -329,24 +318,32 @@ impl Population {
                 child_one = parent_one.clone();
                 child_two = parent_two.clone();
             }
-            let mutate_one: f64 = rng.gen();
-            let mutate_two: f64 = rng.gen();
 
-            let number_of_mutations = rng.gen_range(1, CONFIG.mutation_num_max);
+            let mut children = vec![child_one, child_two];
 
-            if mutate_one < CONFIG.mutation_rate {
-                for _ in 0..number_of_mutations {
-                    // child_one = child_one.single_swap_mutation();
-                    child_one = child_one.remove_vehicle_mutation();
+            // Remove vehicle mutation
+            for i in 0..children.len() {
+                let chance: f64 = rng.gen();
+                let times: usize = rng.gen_range(0, CONFIG.vehicle_remove_mut_max);
+                if chance < CONFIG.vehicle_remove_mut_rate {
+                    for _ in 0..times {
+                        children[i] = children[i].remove_vehicle_mutation();
+                    }
                 }
             }
 
-            if mutate_two < CONFIG.mutation_rate {
-                for _ in 0..number_of_mutations {
-                    child_two = child_two.single_swap_mutation();
+            // Single swap mutation
+            for i in 0..children.len() {
+                let chance: f64 = rng.gen();
+                let times: usize = rng.gen_range(0, CONFIG.single_swap_mut_max);
+                if chance < CONFIG.single_swap_mut_rate {
+                    for _ in 0..times {
+                        children[i] = children[i].single_swap_mutation();
+                    }
                 }
             }
-            vec![child_one, child_two]
+
+            children
         }));
 
         let mut new_population = Population::new();

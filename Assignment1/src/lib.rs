@@ -5,6 +5,7 @@ extern crate approx;
 #[macro_use]
 extern crate envconfig_derive;
 
+mod heuristic;
 mod parser;
 mod problem;
 mod simulation;
@@ -72,17 +73,29 @@ pub struct Config {
     #[envconfig(from = "ELITE_COUNT", default = "2")]
     pub elite_count: usize,
 
-    #[envconfig(from = "MUTATION_RATE", default = "0.05")]
-    pub mutation_rate: f64,
+    #[envconfig(from = "SINGLE_SWAP_MUT_RATE", default = "0.05")]
+    pub single_swap_mut_rate: f64,
 
-    #[envconfig(from = "MUTATION_NUM_MAX", default = "5")]
-    pub mutation_num_max: usize,
+    #[envconfig(from = "SINGLE_SWAP_MUT_MAX", default = "2")]
+    pub single_swap_mut_max: usize,
+
+    #[envconfig(from = "VEHICLE_REMOVE_MUT_RATE", default = "0.05")]
+    pub vehicle_remove_mut_rate: f64,
+
+    #[envconfig(from = "VEHICLE_REMOVE_MUT_MAX", default = "1")]
+    pub vehicle_remove_mut_max: usize,
 
     #[envconfig(from = "CROSSOVER_RATE", default = "1.0")]
     pub crossover_rate: f64,
 
     #[envconfig(from = "PARENT_SELECTION_K", default = "5")]
     pub parent_selection_k: usize,
+
+    #[envconfig(from = "INFEASIBILITY_PENALTY", default = "1000")]
+    pub infeasibility_penalty: i32,
+
+    #[envconfig(from = "CWS_BIAS", default = "10")]
+    pub cws_bias: usize,
 }
 
 lazy_static! {
