@@ -25,9 +25,13 @@ struct GeneticProgram {
 #[pymethods]
 impl GeneticProgram {
     #[new]
-    fn new(obj: &PyRawObject, problem_path: String, optimal_solution_path: String) {
+    fn new(obj: &PyRawObject) {
+        let problem_path = CONFIG.problem_path.clone();
         let mut problem = Problem::new(problem_path);
-        problem.load_optimal_solution(optimal_solution_path);
+        if CONFIG.load_solution {
+            let solution_path = CONFIG.solution_path.clone();
+            problem.load_optimal_solution(solution_path);
+        }
         obj.init(GeneticProgram { problem });
     }
 
@@ -64,6 +68,15 @@ use lazy_static::*;
 
 #[derive(Envconfig)]
 pub struct Config {
+    #[envconfig(from = "PROBLEM_PATH", default = "")]
+    pub problem_path: String,
+
+    #[envconfig(from = "SOLUTION_PATH", default = "")]
+    pub solution_path: String,
+
+    #[envconfig(from = "LOAD_SOLUTION", default = "false")]
+    pub load_solution: bool,
+
     #[envconfig(from = "POPULATION_SIZE", default = "50")]
     pub population_size: i32,
 

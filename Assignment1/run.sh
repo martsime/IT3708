@@ -3,12 +3,19 @@
 LIB="genetic.so"
 PROGRAM="mainqt.py"
 
-# Env variables
+# Paths
+BASE_PATH=data
+PROBLEM_NUMBER=23
+export PROBLEM_PATH=$BASE_PATH/problems/p$PROBLEM_NUMBER
+
+export LOAD_SOLUTION=true
+export SOLUTION_PATH=$BASE_PATH/solutions/p$PROBLEM_NUMBER.res
+
 export RAYON_NUM_THREADS=8
 export DRAW_RATE=1
 
 # SETTINGS
-export POPULATION_SIZE=10000
+export POPULATION_SIZE=100
 export ELITE_COUNT=2
 
 # Mutations

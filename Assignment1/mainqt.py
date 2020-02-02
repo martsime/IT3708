@@ -8,11 +8,6 @@ from operator import itemgetter
 
 import genetic
 
-BASE_PATH = 'data'
-PROBLEM_NUMBER = '08'
-PROBLEM_PATH = f'{BASE_PATH}/problems/p{PROBLEM_NUMBER}'
-SOLUTION_PATH = f'{BASE_PATH}/solutions/p{PROBLEM_NUMBER}.res'
-
 COLORS = [
     QColor('#ffa000'), # Orange
     QColor('#d32f2f'), # Red
@@ -38,13 +33,12 @@ class Worker(QThread):
         self.wait()
 
     def run(self):
-        program = genetic.GeneticProgram(PROBLEM_PATH, SOLUTION_PATH)
+        program = genetic.GeneticProgram()
         self.boundaries_signal.emit(program.get_boundaries())
         self.customers_signal.emit(program.get_customers())
         self.depots_signal.emit(program.get_depots())
         now = time.time()
 
-        print("Generating population")
         program.generate_population()
         old_solution = None
         while True:
