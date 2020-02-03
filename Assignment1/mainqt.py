@@ -15,7 +15,8 @@ COLORS = [
     QColor('#388e3c'), # Green
     QColor('#6a1b9a'), # Purple
     QColor('#1976d2'), # Blue
-    # QColor('#fbc02d'), # Yellow
+    QColor('#fbc02d'), # Yellow
+    QColor('#cddc39'), # Lime
     QColor('#00838f'), # Cyan
     QColor('#4e342e'), # Brown
 ]
@@ -171,10 +172,10 @@ class Window(QMainWindow):
     def draw_routes(self):
         positions = {**self.customers, **self.depots}
         for i, route in enumerate(self.routes):
-            draw_path = QPainterPath()
-            color = COLORS[i % len(COLORS)]
-            self.painter.setPen(QPen(color, 2, Qt.SolidLine))
             start_index = route[0]
+            draw_path = QPainterPath()
+            color = COLORS[start_index % len(COLORS)]
+            self.painter.setPen(QPen(color, 2, Qt.SolidLine))
             route = route[1:]
             start_pos = positions.get(start_index)
             draw_path.moveTo(*start_pos)
