@@ -11,7 +11,7 @@ use rayon::prelude::*;
 use crate::config::CONFIG;
 use crate::heuristic;
 use crate::parser;
-use crate::simulation::{Encode, Simulation};
+use crate::simulation::{Chromosome, Encode, Simulation};
 use crate::solution::{OptimalSolution, Solution};
 use crate::utils::Pos;
 
@@ -295,18 +295,29 @@ impl Problem {
         return (min_x, min_y, max_x, max_y);
     }
 
-    pub fn generate_population(&mut self) {
+    pub fn generate_population(&mut self) -> usize {
         let model = self.model.as_ref().unwrap();
-        self.simulation.population.chromosomes = (0..CONFIG.population_size)
+        let new_chromosomes: Vec<Chromosome> = (0..CONFIG.population_gen_step)
             .into_par_iter()
             .map(|_| {
                 let route = heuristic::savings_init(&model, &self);
-                // println!("Generated: {}", i);
                 Solution::new(route).encode()
             })
             .collect();
 
-        self.simulation.evaluate(model);
+        self.simulation
+            .population
+            .chromosomes
+            .par_extend(new_chromosomes);
+
+        let generated = self.simulation.population.chromosomes.len() as f64;
+        let percentage: usize =
+            ((generated / CONFIG.population_size as f64) * 100.0).floor() as usize;
+
+        if percentage == 100 {
+            self.simulation.evaluate(model);
+        }
+        percentage
     }
 
     pub fn create_model(&mut self) {

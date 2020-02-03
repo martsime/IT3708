@@ -240,7 +240,7 @@ pub struct Population {
 impl Population {
     pub fn new() -> Population {
         Population {
-            chromosomes: Vec::new(),
+            chromosomes: Vec::with_capacity(CONFIG.population_size),
             scores: Vec::new(),
         }
     }

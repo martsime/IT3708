@@ -49,12 +49,14 @@ impl GeneticProgram {
         Ok(self.problem.get_boundaries())
     }
 
-    fn generate_population(&mut self) {
-        self.problem.generate_population();
+    fn generate_population(&mut self) -> PyResult<usize> {
+        Ok(self.problem.generate_population())
     }
 
     fn simulate(&mut self) -> PyResult<Vec<Vec<i32>>> {
-        let solution = self.problem.simulate();
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+        let solution = py.allow_threads(|| self.problem.simulate());
         Ok(solution.routes)
     }
 }
