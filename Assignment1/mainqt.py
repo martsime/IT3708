@@ -1,3 +1,4 @@
+import multiprocessing as mp
 import sys
 import time
 from PyQt5.QtGui import QPainter, QColor, QBrush, QPen, QPainterPath, QFont
@@ -19,9 +20,41 @@ COLORS = [
     QColor('#4e342e'), # Brown
 ]
 
-class Worker(QThread):
-    customers_signal = pyqtSignal(object)
+class MessageType:
+    BOUNDARIES = 'boundaries'
+    CUSTOMERS = 'customers'
+    DEPOTS = 'depots'
+    ROUTES = 'routes'
+
+
+
+def worker_process(q):
+    program = genetic.GeneticProgram()
+    q.put({
+        MessageType.BOUNDARIES: program.get_boundaries(),
+        MessageType.CUSTOMERS: program.get_customers(),
+        MessageType.DEPOTS: program.get_depots(),
+    })
+
+    time.sleep(0.1)
+    while True:
+        percentage_generated = program.generate_population()
+        print(f'Generated: {percentage_generated}%')
+        if percentage_generated == 100:
+            break
+    old_solution = None
+    while True:
+        solution = program.simulate()
+        if solution != old_solution:
+            q.put({
+                MessageType.ROUTES: solution,
+            })
+        old_solution = solution
+
+
+class WorkerThread(QThread):
     boundaries_signal = pyqtSignal(object)
+    customers_signal = pyqtSignal(object)
     depots_signal = pyqtSignal(object)
     routes_signal = pyqtSignal(object)
 
@@ -33,23 +66,25 @@ class Worker(QThread):
         self.wait()
 
     def run(self):
-        program = genetic.GeneticProgram()
-        self.boundaries_signal.emit(program.get_boundaries())
-        self.customers_signal.emit(program.get_customers())
-        self.depots_signal.emit(program.get_depots())
-        now = time.time()
+        queue = mp.Queue()
+        process = mp.Process(target=worker_process, args=[queue])
+        process.start()
 
-        program.generate_population()
-        old_solution = None
+        print("Worker started")
         while True:
-            solution = program.simulate()
-            if solution != old_solution:
-                self.routes_signal.emit(solution)
-            old_solution = solution
-            # print(f"Awake: {time.time()}")
-            # self.routes_signal.emit(time.time())
-
-            # TODO: Do calculations
+            message = queue.get()
+            if message:
+                for key, value in message.items():
+                    if key == MessageType.BOUNDARIES:
+                        self.boundaries_signal.emit(value)
+                    elif key == MessageType.CUSTOMERS:
+                        self.customers_signal.emit(value)
+                    elif key == MessageType.DEPOTS:
+                        self.depots_signal.emit(value)
+                    elif key == MessageType.ROUTES:
+                        self.routes_signal.emit(value)
+            time.sleep(0.01)
+        return
 
 class Window(QMainWindow):
     def __init__(self):
@@ -70,7 +105,7 @@ class Window(QMainWindow):
         self.painter = QPainter()
 
     def start_worker(self):
-        self.worker = Worker()
+        self.worker = WorkerThread()
         self.worker.boundaries_signal.connect(self.set_boundaries)
         self.worker.customers_signal.connect(self.update_customers)
         self.worker.depots_signal.connect(self.update_depots)
@@ -84,9 +119,11 @@ class Window(QMainWindow):
     def update_customers(self, customers):
         self.raw_customers = customers
         self.customers = self.transform_points(customers)
+        self.update()
 
     def set_boundaries(self, boundaries):
         self.boundaries = boundaries
+        self.update()
 
     def update_depots(self, depots):
         self.raw_depots = depots
