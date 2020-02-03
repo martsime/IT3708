@@ -3,7 +3,7 @@ use std::fmt;
 use std::collections::HashMap;
 
 use crate::parser;
-use crate::problem::{Model, Problem};
+use crate::problem::Problem;
 use crate::simulation::{Chromosome, Encode, Gene};
 
 pub struct Solution {
@@ -17,10 +17,6 @@ impl Solution {
             routes,
             score: None,
         }
-    }
-    pub fn evaluate(&self, model: &Model) -> f64 {
-        let mut chromosome = self.encode();
-        chromosome.evaluate(model)
     }
 }
 
@@ -53,6 +49,7 @@ impl fmt::Display for Solution {
     }
 }
 
+#[allow(dead_code)]
 pub struct OptimalSolution {
     path: String,
     total_score: f64,
@@ -86,6 +83,7 @@ impl OptimalSolution {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_solution(&self, problem: &Problem) -> Solution {
         let max_vehicles = problem.max_vehicles;
         let num_customers = problem.num_customers;

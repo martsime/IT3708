@@ -417,12 +417,6 @@ impl Simulation {
         solution
     }
 
-    pub fn add_solution(&mut self, routes: Vec<Vec<i32>>) {
-        let solution = Solution::new(routes);
-        let chromosome = solution.encode();
-        self.population.chromosomes.push(chromosome);
-    }
-
     pub fn evaluate(&mut self, model: &Model) {
         self.population.evaluate(model);
     }

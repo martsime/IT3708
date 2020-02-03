@@ -3,9 +3,6 @@ use std::f64;
 use std::hash::{Hash, Hasher};
 use std::i32;
 
-use rand::seq::SliceRandom;
-use rand::{self, Rng};
-
 use rayon::prelude::*;
 
 use crate::config::CONFIG;
@@ -63,10 +60,9 @@ pub struct Model {
 }
 
 pub struct Problem {
-    path: String,
-    pub max_vehicles: i32, // Maximum number of vehicles available for each depot
+    pub max_vehicles: i32,  // Maximum number of vehicles available for each depot
     pub num_customers: i32, // Total number of customers
-    pub num_depots: i32,   // Number of depots
+    pub num_depots: i32,    // Number of depots
     customers: Vec<Customer>,
     depots: Vec<Depot>,
     pub vehicles: Vec<Vehicle>,
@@ -169,7 +165,6 @@ impl Problem {
         }
 
         let mut problem = Problem {
-            path,
             max_vehicles,
             num_customers,
             num_depots,
@@ -367,83 +362,6 @@ impl Problem {
         solution
     }
 
-    fn random_initial(&self) -> Vec<Vec<i32>> {
-        let mut routes = Vec::new();
-        let mut unvisited_customers: Vec<Customer> = self.customers.iter().cloned().collect();
-
-        let mut route_map: HashMap<i32, Vec<i32>> = HashMap::new();
-        for vehicle in self.vehicles.iter() {
-            let mut route = Vec::new();
-            route.push(vehicle.number);
-            route_map.insert(vehicle.number, route);
-        }
-
-        let mut rng = rand::thread_rng();
-
-        while !unvisited_customers.is_empty() {
-            let vehicle = &self.vehicles[rng.gen_range(0, self.vehicles.len())];
-            let route = route_map.get_mut(&vehicle.number).unwrap();
-            let last_stop = route.last().unwrap();
-            let last_pos = &self
-                .model
-                .as_ref()
-                .unwrap()
-                .positions
-                .get(last_stop)
-                .unwrap();
-            let customer_index = rng.gen_range(0, unvisited_customers.len());
-            let customer = unvisited_customers.swap_remove(customer_index);
-            route.push(customer.number);
-        }
-
-        for vehicle in self.vehicles.iter() {
-            let mut route = route_map.get(&vehicle.number).unwrap().clone();
-            route.push(vehicle.number);
-            routes.push(route);
-        }
-
-        return routes;
-    }
-
-    fn custom_initial(&self) -> Vec<Vec<i32>> {
-        let mut routes = Vec::new();
-        let mut unvisited_customers: Vec<Customer> = self.customers.iter().cloned().collect();
-
-        let mut route_map: HashMap<i32, Vec<i32>> = HashMap::new();
-        for vehicle in self.vehicles.iter() {
-            let mut route = Vec::new();
-            route.push(vehicle.number);
-            route_map.insert(vehicle.number, route);
-        }
-
-        let mut rng = rand::thread_rng();
-
-        while !unvisited_customers.is_empty() {
-            let vehicle = &self.vehicles[rng.gen_range(0, self.vehicles.len())];
-            let route = route_map.get_mut(&vehicle.number).unwrap();
-            let last_stop = route.last().unwrap();
-            let last_pos = &self
-                .model
-                .as_ref()
-                .unwrap()
-                .positions
-                .get(last_stop)
-                .unwrap();
-            let closest_customer = self
-                .get_closest_customer(&last_pos, &mut unvisited_customers, 1000)
-                .unwrap();
-            route.push(closest_customer.number);
-        }
-
-        for vehicle in self.vehicles.iter() {
-            let mut route = route_map.get(&vehicle.number).unwrap().clone();
-            route.push(vehicle.number);
-            routes.push(route);
-        }
-
-        return routes;
-    }
-
     pub fn map_customers_to_depot(&self) -> HashMap<&Depot, Vec<Customer>> {
         // Assigns customers to the closest depot
         let mut depot_map: HashMap<&Depot, Vec<Customer>> = HashMap::new();
@@ -473,94 +391,5 @@ impl Problem {
             }
         }
         return depot_map;
-    }
-
-    fn depot_initial(&self) -> Vec<Vec<i32>> {
-        let mut routes = Vec::new();
-
-        let mut depot_map = self.map_customers_to_depot();
-
-        let mut rng = rand::thread_rng();
-        for (_, value) in depot_map.iter_mut() {
-            value.shuffle(&mut rng);
-        }
-
-        let mut route_map: HashMap<i32, Vec<i32>> = HashMap::new();
-        for vehicle in self.vehicles.iter() {
-            let mut route = Vec::new();
-            route.push(vehicle.number);
-            route_map.insert(vehicle.number, route);
-        }
-
-        fn customers_left(depot_map: &HashMap<&Depot, Vec<Customer>>) -> bool {
-            for (_, value) in depot_map.iter() {
-                if value.len() > 0 {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        while customers_left(&depot_map) {
-            let vehicle = &self.vehicles[rng.gen_range(0, self.vehicles.len())];
-
-            let depot = &vehicle.get_depot(&self.depots);
-            let mut unvisited_customers = depot_map.get_mut(depot).unwrap();
-            let route = route_map.get_mut(&vehicle.number).unwrap();
-            let last_stop = route.last().unwrap();
-            let last_pos = &self
-                .model
-                .as_ref()
-                .unwrap()
-                .positions
-                .get(last_stop)
-                .unwrap();
-            let closest_customer =
-                self.get_closest_customer(&last_pos, &mut unvisited_customers, 100000);
-            match closest_customer {
-                Some(c) => route.push(c.number),
-                None => {}
-            }
-        }
-
-        for vehicle in self.vehicles.iter() {
-            let mut route = route_map.get(&vehicle.number).unwrap().clone();
-            route.push(vehicle.number);
-            routes.push(route);
-        }
-
-        for (key, value) in depot_map.iter() {
-            if value.len() > 0 {
-                println!("ERROR: Unserved customers at depot: {}", key.number);
-            }
-        }
-
-        return routes;
-    }
-
-    fn get_closest_customer(
-        &self,
-        point: &Pos,
-        un_customers: &mut Vec<Customer>,
-        capacity_left: i32,
-    ) -> Option<Customer> {
-        let mut closest_customer_index: i32 = -1;
-        let mut shortest_distance = f64::MAX;
-        for i in 0..un_customers.len() {
-            let customer = &un_customers[i];
-            let distance = point.distance_to(&customer.pos);
-            if distance < shortest_distance && capacity_left >= customer.demand {
-                shortest_distance = distance;
-                closest_customer_index = i as i32;
-            }
-        }
-
-        let mut closest_customer: Option<Customer> = None;
-
-        if closest_customer_index >= 0 {
-            closest_customer = Some(un_customers.swap_remove(closest_customer_index as usize));
-        }
-
-        return closest_customer;
     }
 }
