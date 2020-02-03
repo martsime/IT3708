@@ -49,8 +49,8 @@ impl GeneticProgram {
         Ok(self.problem.get_boundaries())
     }
 
-    fn generate_population(&mut self) -> PyResult<usize> {
-        Ok(self.problem.generate_population())
+    fn generate_population(&mut self) {
+        self.problem.generate_population();
     }
 
     fn simulate(&mut self) -> PyResult<Vec<Vec<i32>>> {

@@ -290,29 +290,34 @@ impl Problem {
         return (min_x, min_y, max_x, max_y);
     }
 
-    pub fn generate_population(&mut self) -> usize {
-        let model = self.model.as_ref().unwrap();
-        let new_chromosomes: Vec<Chromosome> = (0..CONFIG.population_gen_step)
-            .into_par_iter()
-            .map(|_| {
-                let route = heuristic::savings_init(&model, &self);
-                Solution::new(route).encode()
-            })
-            .collect();
-
-        self.simulation
-            .population
-            .chromosomes
-            .par_extend(new_chromosomes);
-
-        let generated = self.simulation.population.chromosomes.len() as f64;
-        let percentage: usize =
-            ((generated / CONFIG.population_size as f64) * 100.0).floor() as usize;
-
-        if percentage == 100 {
-            self.simulation.evaluate(model);
+    pub fn generate_population(&mut self) {
+        if CONFIG.verbose {
+            println!("Generating population");
         }
-        percentage
+        let model = self.model.as_ref().unwrap();
+        while self.simulation.population.size() < CONFIG.population_size {
+            let new_chromosomes: Vec<Chromosome> = (0..CONFIG.population_gen_step)
+                .into_par_iter()
+                .map(|_| {
+                    let route = heuristic::savings_init(&model, &self);
+                    Solution::new(route).encode()
+                })
+                .collect();
+
+            self.simulation
+                .population
+                .chromosomes
+                .par_extend(new_chromosomes);
+
+            if CONFIG.verbose {
+                let generated = self.simulation.population.size();
+                println!(
+                    "Generated {} of {} individuals",
+                    generated, CONFIG.population_size
+                );
+            }
+        }
+        self.simulation.evaluate(model);
     }
 
     pub fn create_model(&mut self) {

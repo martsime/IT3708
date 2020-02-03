@@ -245,6 +245,10 @@ impl Population {
         }
     }
 
+    pub fn size(&self) -> usize {
+        self.chromosomes.len()
+    }
+
     pub fn evaluate(&mut self, model: &Model) {
         let mut scores: Vec<(usize, f64)> = self
             .chromosomes
@@ -258,10 +262,6 @@ impl Population {
 
         scores.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
         self.scores = scores;
-        // println!("SCORES: ");
-        // for score in self.scores.iter() {
-        // println!("{:?}", score);
-        // }
     }
 
     fn parent_selection(&self) -> &Chromosome {

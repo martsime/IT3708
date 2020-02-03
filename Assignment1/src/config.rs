@@ -21,6 +21,9 @@ pub struct Config {
     #[envconfig(from = "DRAW_RATE", default = "1")]
     pub draw_rate: i32,
 
+    #[envconfig(from = "VERBOSE", default = "false")]
+    pub verbose: bool,
+
     #[envconfig(from = "ELITE_COUNT", default = "2")]
     pub elite_count: usize,
 

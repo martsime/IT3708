@@ -37,11 +37,7 @@ def worker_process(q):
     })
 
     time.sleep(0.1)
-    while True:
-        percentage_generated = program.generate_population()
-        print(f'Generated: {percentage_generated}%')
-        if percentage_generated == 100:
-            break
+    program.generate_population()
     old_solution = None
     while True:
         solution = program.simulate()
@@ -70,7 +66,6 @@ class WorkerThread(QThread):
         process = mp.Process(target=worker_process, args=[queue])
         process.start()
 
-        print("Worker started")
         while True:
             message = queue.get()
             if message:
