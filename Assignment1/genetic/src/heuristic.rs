@@ -8,6 +8,30 @@ use rand::{self, Rng};
 use crate::config::CONFIG;
 use crate::problem::{Model, Problem, Vehicle};
 
+struct Savings {
+    pub dim: usize,
+    pub vec: Vec<f64>,
+}
+
+impl Savings {
+    pub fn new(dim: usize) -> Savings {
+        Savings {
+            dim: dim,
+            vec: vec![-100_000.0; dim * dim],
+        }
+    }
+
+    pub fn change(&mut self, i: usize, j: usize, new_value: f64) {
+        self.vec[i * self.dim + j] = new_value;
+    }
+
+    pub fn get_indices(&self, number: usize) -> (usize, usize) {
+        let row = number / self.dim;
+        let col = number % self.dim;
+        (row, col)
+    }
+}
+
 #[derive(PartialEq)]
 struct Route {
     pub cost: Option<f64>,
@@ -39,8 +63,7 @@ impl Route {
         let start_node = vehicle.number as usize;
         let mut current_node = start_node;
         for customer_number in self.customers.iter() {
-            let distance = model.get_distance(current_node, *customer_number as usize);
-            score += distance;
+            score += model.get_distance(current_node, *customer_number as usize);
             capacity_left -= model.get_demand(*customer_number as usize);
             if capacity_left < 0 {
                 score += CONFIG.infeasibility_penalty as f64;
@@ -49,8 +72,7 @@ impl Route {
             current_node = *customer_number as usize;
         }
         // Add distane back to depot
-        let distance = model.get_distance(current_node, start_node);
-        score += distance;
+        score += model.get_distance(current_node, start_node);
         self.cost = Some(score);
     }
 
@@ -85,9 +107,9 @@ fn evaluate_routes(routes: &mut Vec<Route>, model: &Model, vehicle: &Vehicle) {
     }
 }
 
-fn calculate_savings(routes: &Vec<Route>, model: &Model, vehicle: &Vehicle) -> Vec<Vec<f64>> {
+fn calculate_savings(routes: &Vec<Route>, model: &Model, vehicle: &Vehicle) -> Savings {
     let num_routes = routes.len();
-    let mut savings: Vec<Vec<f64>> = vec![vec![-100000.0; num_routes]; num_routes];
+    let mut savings = Savings::new(num_routes);
 
     for (i1, r1) in routes.iter().enumerate() {
         for (i2, r2) in routes.iter().enumerate() {
@@ -97,7 +119,7 @@ fn calculate_savings(routes: &Vec<Route>, model: &Model, vehicle: &Vehicle) -> V
             let mut merged_route = merge_routes(r1, r2);
             merged_route.evaluate(model, vehicle);
             let saving = r1.get_cost() + r2.get_cost() - merged_route.get_cost();
-            savings[i1][i2] = saving;
+            savings.change(i1, i2, saving);
         }
     }
 
@@ -131,34 +153,20 @@ fn remove_routes(routes: &mut Vec<Route>, index_one: usize, index_two: usize) {
     routes.remove(min_index);
 }
 
-fn sort_savings(savings: &Vec<Vec<f64>>) -> Vec<((usize, usize), f64)> {
-    let mut savings: Vec<((usize, usize), f64)> = savings
+fn sort_savings(savings: &Savings) -> Vec<(usize, f64)> {
+    let sorted_savings: Vec<(usize, f64)> = savings
+        .vec
         .iter()
+        .cloned()
         .enumerate()
-        .flat_map(|(i, row)| {
-            let mut r: Vec<((usize, usize), f64)> = row
-                .iter()
-                .cloned()
-                .enumerate()
-                .map(|(j, saving)| ((i, j), saving))
-                .collect();
-            // Filter out all where indices are the same
-            r.retain(|((i, j), _)| i != j);
-            r
-        })
-        .collect();
-
-    savings = savings
-        .into_iter()
-        // Reverse (largest first)
-        .sorted_by(|a, b| b.1.partial_cmp(&a.1).unwrap())
         // Uses lazysort::SortedBy
+        .sorted_by(|a, b| b.1.partial_cmp(&a.1).unwrap())
         .take(CONFIG.cws_bias)
         .collect();
-    savings
+    sorted_savings
 }
 
-fn select_routes_to_merge(sorted_savings: &Vec<((usize, usize), f64)>) -> (usize, usize) {
+fn select_routes_to_merge(sorted_savings: &Vec<(usize, f64)>) -> usize {
     let cws_bias = cmp::min(CONFIG.cws_bias, sorted_savings.len());
 
     let mut rng = rand::thread_rng();
@@ -166,11 +174,11 @@ fn select_routes_to_merge(sorted_savings: &Vec<((usize, usize), f64)>) -> (usize
     if index >= sorted_savings.len() {
         panic!("This is not allowed!");
     }
-    let ((i, j), _) = sorted_savings[index];
-    (i, j)
+    let (i, _) = sorted_savings[index];
+    i
 }
 
-fn positive_saving_left(sorted_savings: &Vec<((usize, usize), f64)>) -> bool {
+fn positive_saving_left(sorted_savings: &Vec<(usize, f64)>) -> bool {
     match sorted_savings.first() {
         Some(saving) => {
             let (_, saved_cost) = saving;
@@ -202,7 +210,8 @@ pub fn savings_init(model: &Model, problem: &Problem) -> Vec<Vec<i32>> {
                 break;
             }
 
-            let (i, j) = select_routes_to_merge(&sorted_savings);
+            let i = select_routes_to_merge(&sorted_savings);
+            let (i, j) = savings_matrix.get_indices(i);
             let route_one = &routes[i];
             let route_two = &routes[j];
             let mut new_route = merge_routes(route_one, route_two);
