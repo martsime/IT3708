@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget
 
 from operator import itemgetter
 
-import genetic
+import pygenetic
 
 COLORS = [
     QColor('#ffa000'), # Orange
@@ -30,7 +30,7 @@ class MessageType:
 
 
 def worker_process(q):
-    program = genetic.GeneticProgram()
+    program = pygenetic.GeneticProgram()
     q.put({
         MessageType.BOUNDARIES: program.get_boundaries(),
         MessageType.CUSTOMERS: program.get_customers(),

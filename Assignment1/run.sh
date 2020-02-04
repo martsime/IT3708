@@ -1,6 +1,6 @@
 #!/bin/bash
 
-LIB="genetic.so"
+LIB="pygenetic.so"
 PROGRAM="mainqt.py"
 
 ############

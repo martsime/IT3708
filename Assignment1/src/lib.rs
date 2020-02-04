@@ -1,25 +1,12 @@
-#[cfg(test)]
-#[macro_use]
-extern crate approx;
-
-#[macro_use]
-extern crate envconfig_derive;
-
-mod config;
-mod heuristic;
-mod parser;
-mod problem;
-mod simulation;
-mod solution;
-mod utils;
+extern crate genetic;
 
 use std::collections::HashMap;
 
-use config::CONFIG;
-use problem::Problem;
+use genetic::config::CONFIG;
+use genetic::problem::Problem;
 use pyo3::prelude::*;
 
-#[pyclass(module = "genetic")]
+#[pyclass(module = "pygenetic")]
 struct GeneticProgram {
     problem: Problem,
 }
@@ -62,7 +49,7 @@ impl GeneticProgram {
 }
 
 #[pymodule]
-fn genetic(_py: Python, m: &PyModule) -> PyResult<()> {
+fn pygenetic(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<GeneticProgram>()?;
     Ok(())
 }

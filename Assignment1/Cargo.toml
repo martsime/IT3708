@@ -1,22 +1,17 @@
 [package]
-name = "genetic"
+name = "pygenetic"
 version = "0.1.0"
 authors = ["Martin Simensen <simensen94@gmail.com>"]
 edition = "2018"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "genetic"
+name = "pygenetic"
 crate-type = ["cdylib"]
+path = "src/lib.rs"
 
 [dependencies]
-approx = "0.3.2"
-envconfig_derive = "0.6.0"
-envconfig = "0.6.0"
-lazy_static = "1.4.0"
-rand = "0.7.3"
-rayon = "1.3.0"
+genetic = { path = "genetic" }
 
 [dependencies.pyo3]
 version = "= 0.8.5"
