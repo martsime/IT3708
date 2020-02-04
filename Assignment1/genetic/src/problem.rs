@@ -55,21 +55,18 @@ impl Vehicle {
 
 pub struct Model {
     pub num_nodes: usize,
-    pub distances: HashMap<(i32, i32), f64>,
-    pub distances_vec: Vec<f64>,
-    pub capacities: HashMap<i32, i32>,
-    pub capacities_vec: Vec<i32>,
-    pub positions: HashMap<i32, Pos>,
+    pub distances: Vec<f64>,
+    pub capacities: Vec<i32>,
 }
 
 impl Model {
     pub fn get_distance(&self, from: usize, to: usize) -> f64 {
         let index = (from - 1) * self.num_nodes + (to - 1);
-        self.distances_vec[index]
+        self.distances[index]
     }
 
     pub fn get_demand(&self, node: usize) -> i32 {
-        self.capacities_vec[node - 1]
+        self.capacities[node - 1]
     }
 }
 
@@ -215,15 +212,12 @@ impl Problem {
         let num_nodes = self.vehicles.len() + self.customers.len();
         self.model = Some(Model {
             num_nodes: num_nodes,
-            distances_vec: self.calcuate_distance_vec(),
             distances: self.calculate_distances(),
             capacities: self.calculate_capacities(),
-            capacities_vec: self.calculate_capacities_vec(),
-            positions: self.calculate_positions(),
         });
     }
 
-    pub fn calcuate_distance_vec(&self) -> Vec<f64> {
+    pub fn calculate_distances(&self) -> Vec<f64> {
         let num_nodes = self.customers.len() + self.vehicles.len();
         let mut distances: Vec<f64> = vec![0.0; num_nodes * num_nodes];
 
@@ -246,8 +240,6 @@ impl Problem {
             }
         }
 
-        // println!("Distances: {:?}", distances);
-
         distances
     }
 
@@ -256,44 +248,7 @@ impl Problem {
         self.optimal_solution = Some(optimal_solution);
     }
 
-    pub fn calculate_distances(&self) -> HashMap<(i32, i32), f64> {
-        let mut distances: HashMap<(i32, i32), f64> = HashMap::new();
-        let mut positions: HashMap<i32, Pos> = HashMap::new();
-        for customer in self.customers.iter() {
-            positions.insert(customer.number, customer.pos.clone());
-        }
-
-        for vehicle in self.vehicles.iter() {
-            let depot = vehicle.get_depot(&self.depots);
-            let pos = depot.pos.clone();
-            positions.insert(vehicle.number, pos);
-        }
-
-        for (key1, pos1) in positions.iter() {
-            for (key2, pos2) in positions.iter() {
-                let distance_key: (i32, i32) = (*key1, *key2);
-                let distance = pos1.distance_to(pos2);
-                distances.insert(distance_key, distance);
-            }
-        }
-
-        distances
-    }
-
-    pub fn calculate_capacities(&self) -> HashMap<i32, i32> {
-        let mut capacities: HashMap<i32, i32> = HashMap::new();
-        for customer in self.customers.iter() {
-            capacities.insert(customer.number, customer.demand);
-        }
-
-        for vehicle in self.vehicles.iter() {
-            let depot = vehicle.get_depot(&self.depots);
-            capacities.insert(vehicle.number, depot.capacity);
-        }
-        capacities
-    }
-
-    pub fn calculate_capacities_vec(&self) -> Vec<i32> {
+    pub fn calculate_capacities(&self) -> Vec<i32> {
         let num_nodes = self.customers.len() + self.vehicles.len();
         let mut capacities: Vec<i32> = vec![0; num_nodes];
         for c in self.customers.iter() {
@@ -305,18 +260,6 @@ impl Problem {
         }
 
         capacities
-    }
-
-    pub fn calculate_positions(&self) -> HashMap<i32, Pos> {
-        let mut map = HashMap::new();
-        for customer in self.customers.iter() {
-            map.insert(customer.number, customer.pos.clone());
-        }
-        for depot in self.depots.iter() {
-            map.insert(depot.number, depot.pos.clone());
-        }
-
-        return map;
     }
 
     pub fn get_customers(&self) -> HashMap<i32, (i32, i32)> {

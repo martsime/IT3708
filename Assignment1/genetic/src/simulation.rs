@@ -165,39 +165,30 @@ impl Chromosome {
         let total_genes = self.genes.len();
         let start_index = self.get_first_depot_index().unwrap();
 
-        let distances = &model.distances;
-        let capacities = &model.capacities;
-
         let mut score: f64 = 0.0;
         let mut index = start_index;
         let mut current_node = self.genes[index].value();
-        let mut depot_node = current_node;
-        let mut distance_key: (i32, i32);
+        let mut vehicle_node = current_node;
+        let mut distance: f64;
 
-        let mut capacity_left = *capacities.get(&depot_node).unwrap();
+        let mut capacity_left = model.get_demand(vehicle_node as usize);
 
         loop {
             index = (index + 1) % total_genes;
             match self.genes[index] {
                 Gene::Depot(node) => {
                     // Back to last depot
-                    distance_key = (current_node, depot_node);
+                    distance = model.get_distance(current_node as usize, vehicle_node as usize);
                     current_node = node;
-                    depot_node = node;
-                    capacity_left = *capacities.get(&depot_node).unwrap();
+                    vehicle_node = node;
+                    capacity_left = model.get_demand(vehicle_node as usize);
                 }
                 Gene::Customer(node) => {
-                    distance_key = (current_node, node);
+                    distance = model.get_distance(current_node as usize, node as usize);
                     current_node = node;
-                    capacity_left -= *capacities.get(&current_node).unwrap();
+                    capacity_left -= model.get_demand(current_node as usize);
                 }
             }
-            let distance: f64 = match distances.get(&distance_key) {
-                Some(val) => *val,
-                None => {
-                    panic!("Unable to find distance: {:?}", distance_key);
-                }
-            };
             score += distance;
 
             if capacity_left < 0 {
