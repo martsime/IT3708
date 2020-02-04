@@ -21,4 +21,9 @@ fn main() {
     time_method("generate_population", || {
         problem.generate_population();
     });
+    time_method("simulate", || {
+        for _ in 0..1000 {
+            problem.simulate();
+        }
+    });
 }

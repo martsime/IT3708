@@ -159,10 +159,14 @@ fn sort_savings(savings: &Savings) -> Vec<(usize, f64)> {
         .iter()
         .cloned()
         .enumerate()
-        // Uses lazysort::SortedBy
+        .filter(|(i, _)| {
+            let (x, y) = savings.get_indices(*i);
+            x != y
+        })
         .sorted_by(|a, b| b.1.partial_cmp(&a.1).unwrap())
         .take(CONFIG.cws_bias)
         .collect();
+
     sorted_savings
 }
 

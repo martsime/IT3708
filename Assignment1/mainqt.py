@@ -1,5 +1,6 @@
 import multiprocessing as mp
 import sys
+import os
 import time
 from PyQt5.QtGui import QPainter, QColor, QBrush, QPen, QPainterPath, QFont
 from PyQt5.QtCore import QThread, pyqtSignal, Qt, QRect
@@ -28,6 +29,10 @@ class MessageType:
     ROUTES = 'routes'
 
 
+SHOW_SOLUTION = os.getenv('SHOW_SOLUTION', 'false') == 'true'
+SHOW_OPTIMAL_SOLUTION = os.getenv('SHOW_OPTIMAL_SOLUTION', 'false') == 'true'
+GENERATIONS = int(os.getenv('GENERATIONS', '1000'))
+
 
 def worker_process(q):
     program = pygenetic.GeneticProgram()
@@ -38,9 +43,15 @@ def worker_process(q):
     })
 
     time.sleep(0.1)
+    if SHOW_SOLUTION or SHOW_OPTIMAL_SOLUTION:
+        q.put({
+            MessageType.ROUTES: program.get_solution(),
+        })
+        return
+
     program.generate_population()
     old_solution = None
-    while True:
+    for _ in range(0, GENERATIONS - 1):
         solution = program.simulate()
         if solution != old_solution:
             q.put({

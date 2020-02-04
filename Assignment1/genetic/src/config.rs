@@ -6,17 +6,29 @@ pub struct Config {
     #[envconfig(from = "PROBLEM_PATH", default = "")]
     pub problem_path: String,
 
+    #[envconfig(from = "OPTIMAL_SOLUTION_PATH", default = "")]
+    pub optimal_solution_path: String,
+
     #[envconfig(from = "SOLUTION_PATH", default = "")]
     pub solution_path: String,
 
     #[envconfig(from = "LOAD_SOLUTION", default = "false")]
     pub load_solution: bool,
 
+    #[envconfig(from = "SHOW_SOLUTION", default = "false")]
+    pub show_solution: bool,
+
+    #[envconfig(from = "SHOW_OPTIMAL_SOLUTION", default = "false")]
+    pub show_optimal_solution: bool,
+
     #[envconfig(from = "POPULATION_SIZE", default = "50")]
     pub population_size: usize,
 
     #[envconfig(from = "POPULATION_GEN_STEP", default = "50")]
     pub population_gen_step: usize,
+
+    #[envconfig(from = "GENERATIONS", default = "1000")]
+    pub generations: usize,
 
     #[envconfig(from = "DRAW_RATE", default = "1")]
     pub draw_rate: i32,

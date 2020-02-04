@@ -243,6 +243,52 @@ impl Problem {
         distances
     }
 
+    pub fn get_solution(&self) -> Solution {
+        let mut solution: Solution;
+        if CONFIG.show_solution {
+            solution = OptimalSolution::new(CONFIG.solution_path.clone()).get_solution(&self);
+        } else if CONFIG.show_optimal_solution {
+            solution =
+                OptimalSolution::new(CONFIG.optimal_solution_path.clone()).get_solution(&self);
+        } else {
+            panic!("No solution set!");
+        }
+
+        let model = self.model.as_ref().unwrap();
+        solution.evaluate(model);
+
+        println!(
+            "Generation {}, Score: {}",
+            self.simulation.generation,
+            solution.score.unwrap(),
+        );
+
+        for route in solution.routes.iter_mut() {
+            for stop in route.iter_mut() {
+                if *stop > self.num_customers {
+                    let mut vehicle = None;
+                    for v in self.vehicles.iter() {
+                        if v.number == *stop {
+                            vehicle = Some(v);
+                        }
+                    }
+                    if let None = vehicle {
+                        panic!("Vehicle for stop {} not found!", stop);
+                    }
+                    let depot_number = match vehicle {
+                        Some(v) => v.depot,
+                        None => {
+                            panic!("No vehicle found!");
+                        }
+                    };
+                    *stop = depot_number;
+                }
+            }
+        }
+
+        solution
+    }
+
     pub fn load_optimal_solution(&mut self, path: String) {
         let optimal_solution = OptimalSolution::new(path);
         self.optimal_solution = Some(optimal_solution);
@@ -357,6 +403,16 @@ impl Problem {
             solution = self.simulation.get_best_solution();
         }
 
+        println!(
+            "Generation {}, Score: {}",
+            self.simulation.generation,
+            solution.score.unwrap(),
+        );
+
+        if self.simulation.generation as usize == CONFIG.generations {
+            solution.write_to_file(&self, model);
+        }
+
         for route in solution.routes.iter_mut() {
             for stop in route.iter_mut() {
                 if *stop > self.num_customers {
@@ -380,11 +436,6 @@ impl Problem {
             }
         }
 
-        println!(
-            "Generation {}, Score: {}",
-            self.simulation.generation,
-            solution.score.unwrap(),
-        );
         solution
     }
 

@@ -18,8 +18,8 @@ impl GeneticProgram {
         let problem_path = CONFIG.problem_path.clone();
         let mut problem = Problem::new(problem_path);
         if CONFIG.load_solution {
-            let solution_path = CONFIG.solution_path.clone();
-            problem.load_optimal_solution(solution_path);
+            let optimal_solution_path = CONFIG.optimal_solution_path.clone();
+            problem.load_optimal_solution(optimal_solution_path);
         }
         obj.init(GeneticProgram { problem });
     }
@@ -38,6 +38,10 @@ impl GeneticProgram {
 
     fn generate_population(&mut self) {
         self.problem.generate_population();
+    }
+
+    fn get_solution(&self) -> PyResult<Vec<Vec<i32>>> {
+        Ok(self.problem.get_solution().routes)
     }
 
     fn simulate(&mut self) -> PyResult<Vec<Vec<i32>>> {
