@@ -54,9 +54,18 @@ impl Vehicle {
 }
 
 pub struct Model {
+    pub num_nodes: usize,
     pub distances: HashMap<(i32, i32), f64>,
+    pub distances_vec: Vec<f64>,
     pub capacities: HashMap<i32, i32>,
     pub positions: HashMap<i32, Pos>,
+}
+
+impl Model {
+    pub fn get_distance(&self, from: usize, to: usize) -> f64 {
+        let index = (from - 1) * self.num_nodes + (to - 1);
+        self.distances_vec[index]
+    }
 }
 
 pub struct Problem {
@@ -177,6 +186,63 @@ impl Problem {
         };
         problem.create_model();
         return problem;
+    }
+
+    pub fn get_vehicle_for_depot(&self, depot: &Depot) -> &Vehicle {
+        let mut vehicle: Option<&Vehicle> = None;
+
+        for v in self.vehicles.iter() {
+            if v.depot == depot.number {
+                vehicle = Some(v);
+                break;
+            }
+        }
+
+        match vehicle {
+            Some(v) => v,
+            None => {
+                panic!("No vehicles for depot!");
+            }
+        }
+    }
+
+    pub fn create_model(&mut self) {
+        let num_nodes = self.vehicles.len() + self.customers.len();
+        self.model = Some(Model {
+            num_nodes: num_nodes,
+            distances_vec: self.calcuate_distance_vec(),
+            distances: self.calculate_distances(),
+            capacities: self.calculate_capacities(),
+            positions: self.calculate_positions(),
+        });
+    }
+
+    pub fn calcuate_distance_vec(&self) -> Vec<f64> {
+        let num_nodes = self.customers.len() + self.vehicles.len();
+        let mut distances: Vec<f64> = vec![0.0; num_nodes * num_nodes];
+
+        let mut positions: HashMap<usize, Pos> = HashMap::new();
+        for customer in self.customers.iter() {
+            positions.insert(customer.number as usize, customer.pos.clone());
+        }
+
+        for vehicle in self.vehicles.iter() {
+            let depot = vehicle.get_depot(&self.depots);
+            let pos = depot.pos.clone();
+            positions.insert(vehicle.number as usize, pos);
+        }
+
+        for (key1, pos1) in positions.iter() {
+            for (key2, pos2) in positions.iter() {
+                let index = (key1 - 1) * num_nodes + (key2 - 1);
+                let distance = pos1.distance_to(pos2);
+                distances[index] = distance;
+            }
+        }
+
+        // println!("Distances: {:?}", distances);
+
+        distances
     }
 
     pub fn load_optimal_solution(&mut self, path: String) {
@@ -318,14 +384,6 @@ impl Problem {
             }
         }
         self.simulation.evaluate(model);
-    }
-
-    pub fn create_model(&mut self) {
-        self.model = Some(Model {
-            distances: self.calculate_distances(),
-            capacities: self.calculate_capacities(),
-            positions: self.calculate_positions(),
-        });
     }
 
     pub fn simulate(&mut self) -> Solution {

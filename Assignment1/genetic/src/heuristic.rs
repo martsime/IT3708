@@ -5,8 +5,7 @@ use std::fmt;
 use rand::{self, Rng};
 
 use crate::config::CONFIG;
-use crate::problem::{Depot, Model, Problem};
-use crate::utils::Pos;
+use crate::problem::{Model, Problem, Vehicle};
 
 #[derive(PartialEq)]
 struct Route {
@@ -29,40 +28,34 @@ impl fmt::Display for Route {
 }
 
 impl Route {
-    pub fn evaluate(&mut self, model: &Model, depot: &Depot) {
+    pub fn evaluate(&mut self, model: &Model, vehicle: &Vehicle) {
         // Cost already calculated
         if let Some(_) = self.cost {
             return;
         }
         let mut score: f64 = 0.0;
-        let mut capacity_left: i32 = depot.capacity;
-        let mut current_pos: &Pos = &depot.pos;
+        let mut capacity_left: i32 = vehicle.capacity;
+        let start_node = vehicle.number as usize;
+        let mut current_node = start_node;
         for customer_number in self.customers.iter() {
-            let customer_pos = match model.positions.get(customer_number) {
-                Some(pos) => pos,
-                None => {
-                    panic!(
-                        "ERROR! Could not find position for node: {}",
-                        customer_number
-                    );
-                }
-            };
             let customer_demand = match model.capacities.get(customer_number) {
                 Some(demand) => demand,
                 None => {
                     panic!("ERROR! Could not find demand for node: {}", customer_number);
                 }
             };
-            score += current_pos.distance_to(customer_pos);
+            let distance = model.get_distance(current_node, *customer_number as usize);
+            score += distance;
             capacity_left -= customer_demand;
             if capacity_left < 0 {
                 score += CONFIG.infeasibility_penalty as f64;
             }
 
-            current_pos = customer_pos;
+            current_node = *customer_number as usize;
         }
         // Add distane back to depot
-        score += depot.pos.distance_to(current_pos);
+        let distance = model.get_distance(current_node, start_node);
+        score += distance;
         self.cost = Some(score);
     }
 
@@ -79,20 +72,25 @@ impl Route {
 fn single_customers_routes(customers: Vec<i32>) -> Vec<Route> {
     customers
         .iter()
-        .map(|customer| Route {
-            cost: None,
-            customers: vec![*customer],
+        .map(|customer| {
+            let mut customers: Vec<i32> = Vec::with_capacity(customers.len());
+            customers.push(*customer);
+
+            Route {
+                cost: None,
+                customers: customers,
+            }
         })
         .collect()
 }
 
-fn evaluate_routes(routes: &mut Vec<Route>, model: &Model, depot: &Depot) {
+fn evaluate_routes(routes: &mut Vec<Route>, model: &Model, vehicle: &Vehicle) {
     for route in routes.iter_mut() {
-        route.evaluate(model, depot);
+        route.evaluate(model, vehicle);
     }
 }
 
-fn calculate_savings(routes: &Vec<Route>, model: &Model, depot: &Depot) -> Vec<Vec<f64>> {
+fn calculate_savings(routes: &Vec<Route>, model: &Model, vehicle: &Vehicle) -> Vec<Vec<f64>> {
     let num_routes = routes.len();
     let mut savings: Vec<Vec<f64>> = vec![vec![-100000.0; num_routes]; num_routes];
 
@@ -102,7 +100,7 @@ fn calculate_savings(routes: &Vec<Route>, model: &Model, depot: &Depot) -> Vec<V
                 continue;
             }
             let mut merged_route = merge_routes(r1, r2);
-            merged_route.evaluate(model, depot);
+            merged_route.evaluate(model, vehicle);
             let saving = r1.get_cost() + r2.get_cost() - merged_route.get_cost();
             savings[i1][i2] = saving;
         }
@@ -193,24 +191,10 @@ pub fn savings_init(model: &Model, problem: &Problem) -> Vec<Vec<i32>> {
     for (depot, customers) in depot_map.iter() {
         let customers = customers.iter().map(|c| c.number).collect();
         let mut routes = single_customers_routes(customers);
-        let mut total_count = 0;
-        for r in routes.iter() {
-            for _ in r.customers.iter() {
-                total_count += 1;
-            }
-        }
-        evaluate_routes(&mut routes, &model, &depot);
+        let vehicle = problem.get_vehicle_for_depot(depot);
+        evaluate_routes(&mut routes, &model, &vehicle);
         loop {
-            let mut new_count = 0;
-            for r in routes.iter() {
-                for _ in r.customers.iter() {
-                    new_count += 1;
-                }
-            }
-            if new_count != total_count {
-                // panic!("New {} != Old {}", new_count, total_count);
-            }
-            let savings_matrix = calculate_savings(&routes, model, depot);
+            let savings_matrix = calculate_savings(&routes, model, vehicle);
             let sorted_savings = sort_savings(&savings_matrix);
 
             // Continue merging until we have enough vehicles and there is no saving
@@ -223,7 +207,7 @@ pub fn savings_init(model: &Model, problem: &Problem) -> Vec<Vec<i32>> {
             let route_one = &routes[i];
             let route_two = &routes[j];
             let mut new_route = merge_routes(route_one, route_two);
-            new_route.evaluate(model, depot);
+            new_route.evaluate(model, vehicle);
             remove_routes(&mut routes, i, j);
             routes.push(new_route);
         }
