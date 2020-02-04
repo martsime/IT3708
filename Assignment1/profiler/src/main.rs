@@ -1,12 +1,10 @@
 extern crate genetic;
 
+use genetic::config::CONFIG;
 use genetic::problem::Problem;
-use std::{thread, time};
 
 fn main() {
-    println!("Starting");
-    let ten_millis = time::Duration::from_secs(1);
-
-    thread::sleep(ten_millis);
-    println!("Done");
+    let problem_path = CONFIG.problem_path.clone();
+    let mut problem = Problem::new(problem_path);
+    problem.generate_population();
 }

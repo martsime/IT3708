@@ -8,3 +8,6 @@ edition = "2018"
 
 [dependencies]
 genetic = { path = "../genetic" }
+
+[profile.release]
+debug = true
