@@ -2,6 +2,7 @@ use std::cmp;
 use std::f64;
 use std::fmt;
 
+use lazysort::SortedBy;
 use rand::{self, Rng};
 
 use crate::config::CONFIG;
@@ -141,21 +142,25 @@ fn sort_savings(savings: &Vec<Vec<f64>>) -> Vec<((usize, usize), f64)> {
         .iter()
         .enumerate()
         .flat_map(|(i, row)| {
-            let r: Vec<((usize, usize), f64)> = row
+            let mut r: Vec<((usize, usize), f64)> = row
                 .iter()
                 .cloned()
                 .enumerate()
                 .map(|(j, saving)| ((i, j), saving))
                 .collect();
+            // Filter out all where indices are the same
+            r.retain(|((i, j), _)| i != j);
             r
         })
         .collect();
 
-    // Filter out all where indices are the same
-    savings.retain(|((i, j), _)| i != j);
-
-    // Reverse (largest first)
-    savings.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+    savings = savings
+        .into_iter()
+        // Reverse (largest first)
+        .sorted_by(|a, b| b.1.partial_cmp(&a.1).unwrap())
+        // Uses lazysort::SortedBy
+        .take(CONFIG.cws_bias)
+        .collect();
     savings
 }
 
