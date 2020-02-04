@@ -39,15 +39,9 @@ impl Route {
         let start_node = vehicle.number as usize;
         let mut current_node = start_node;
         for customer_number in self.customers.iter() {
-            let customer_demand = match model.capacities.get(customer_number) {
-                Some(demand) => demand,
-                None => {
-                    panic!("ERROR! Could not find demand for node: {}", customer_number);
-                }
-            };
             let distance = model.get_distance(current_node, *customer_number as usize);
             score += distance;
-            capacity_left -= customer_demand;
+            capacity_left -= model.get_demand(*customer_number as usize);
             if capacity_left < 0 {
                 score += CONFIG.infeasibility_penalty as f64;
             }

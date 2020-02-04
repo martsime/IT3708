@@ -58,6 +58,7 @@ pub struct Model {
     pub distances: HashMap<(i32, i32), f64>,
     pub distances_vec: Vec<f64>,
     pub capacities: HashMap<i32, i32>,
+    pub capacities_vec: Vec<i32>,
     pub positions: HashMap<i32, Pos>,
 }
 
@@ -65,6 +66,10 @@ impl Model {
     pub fn get_distance(&self, from: usize, to: usize) -> f64 {
         let index = (from - 1) * self.num_nodes + (to - 1);
         self.distances_vec[index]
+    }
+
+    pub fn get_demand(&self, node: usize) -> i32 {
+        self.capacities_vec[node - 1]
     }
 }
 
@@ -213,6 +218,7 @@ impl Problem {
             distances_vec: self.calcuate_distance_vec(),
             distances: self.calculate_distances(),
             capacities: self.calculate_capacities(),
+            capacities_vec: self.calculate_capacities_vec(),
             positions: self.calculate_positions(),
         });
     }
@@ -284,6 +290,20 @@ impl Problem {
             let depot = vehicle.get_depot(&self.depots);
             capacities.insert(vehicle.number, depot.capacity);
         }
+        capacities
+    }
+
+    pub fn calculate_capacities_vec(&self) -> Vec<i32> {
+        let num_nodes = self.customers.len() + self.vehicles.len();
+        let mut capacities: Vec<i32> = vec![0; num_nodes];
+        for c in self.customers.iter() {
+            capacities[c.number as usize - 1] = c.demand;
+        }
+
+        for v in self.vehicles.iter() {
+            capacities[v.number as usize - 1] = v.capacity;
+        }
+
         capacities
     }
 
