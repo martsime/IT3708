@@ -222,7 +222,6 @@ impl OptimalSolution {
                 vehicle_num += 1;
             }
         }
-        println!("{:?}", routes);
         Solution::new(routes)
     }
 }
