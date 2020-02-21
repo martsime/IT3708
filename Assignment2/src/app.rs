@@ -1,13 +1,51 @@
 use gio::prelude::*;
 use gtk::prelude::*;
 
-use gdk_pixbuf::Pixbuf;
+use gdk_pixbuf::{Colorspace, Pixbuf};
 
 use std::thread;
 use std::time::Duration;
 
+use rand::Rng;
+
 pub struct App {
     gui: gtk::Application,
+}
+
+struct Worker {
+    image: image::RgbImage,
+}
+
+impl Worker {
+    pub fn new() -> Self {
+        let image: image::RgbImage = match image::open("training/86016/Test image.jpg") {
+            Ok(image) => image.into_rgb(),
+            Err(_) => panic!("Unable to load image!"),
+        };
+        println!("Loaded image!");
+
+        println!("Image size: {:?}", image.dimensions());
+
+        for pixel in image.pixels() {
+            println!("Pixel: {:?}", pixel);
+        }
+
+        Worker { image: image }
+    }
+
+    pub fn get_image(&mut self) -> image::RgbImage {
+        let mut rng = rand::thread_rng();
+        let (width, height) = self.image.dimensions();
+
+        for _ in 0..1000 {
+            let x = rng.gen_range(0, width);
+            let y = rng.gen_range(0, height);
+
+            self.image.put_pixel(x, y, image::Rgb([0, 0, 0]));
+        }
+
+        self.image.clone()
+    }
 }
 
 impl App {
@@ -31,7 +69,7 @@ impl App {
 
             let pixelb = Pixbuf::new_from_file_at_size("training/86016/Test image.jpg", 400, 400);
 
-            let image = match pixelb {
+            let gtk_image = match pixelb {
                 Ok(buf) => gtk::Image::new_from_pixbuf(Some(&buf)),
                 Err(_) => {
                     panic!("Failed to load pixelbuffer");
@@ -54,23 +92,38 @@ impl App {
             grid_layout.attach(&text_input, 0, 0, 1, 1);
             grid_layout.attach(&button, 1, 0, 1, 1);
             grid_layout.attach(&space, 0, 1, 2, 1);
-            grid_layout.attach(&image, 0, 2, 2, 1);
+            grid_layout.attach(&gtk_image, 0, 2, 2, 1);
 
             window.add(&grid_layout);
 
             let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
             thread::spawn(move || {
-                let mut i = 0;
+                let mut worker = Worker::new();
                 loop {
-                    thread::sleep(Duration::from_millis(1000));
-                    i += 1;
-                    tx.send(i).expect("Could not send on channel!");
+                    thread::sleep(Duration::from_millis(10));
+                    let image = worker.get_image();
+                    tx.send(image).expect("Failed to send");
                 }
             });
 
-            rx.attach(None, move |value| {
-                println!("Value: {}", value);
+            rx.attach(None, move |image| {
+                let (width, height) = image.dimensions();
+                let mut flattened = image.into_flat_samples();
+                let raw_pixels: &mut [u8] = flattened.as_mut_slice();
+
+                let pixbuf = Pixbuf::new_from_mut_slice(
+                    raw_pixels,
+                    Colorspace::Rgb,
+                    false,
+                    8,
+                    width as i32,
+                    height as i32,
+                    width as i32 * 3,
+                );
+
+                gtk_image.set_from_pixbuf(Some(&pixbuf));
+
                 glib::Continue(true)
             });
 
