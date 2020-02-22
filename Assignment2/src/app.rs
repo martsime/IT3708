@@ -22,28 +22,11 @@ impl Worker {
             Ok(image) => image.into_rgb(),
             Err(_) => panic!("Unable to load image!"),
         };
-        println!("Loaded image!");
-
-        println!("Image size: {:?}", image.dimensions());
-
         Worker { image: image }
     }
 
-    pub fn get_image(&mut self, i: usize) -> image::RgbImage {
-        let mut rng = rand::thread_rng();
-        let (width, height) = self.image.dimensions();
-
-        /*
-        for _ in 0..1000 {
-            let x = rng.gen_range(0, width);
-            let y = rng.gen_range(0, height);
-
-            self.image.put_pixel(x, y, image::Rgb([0, 0, 0]));
-        }
-        */
-
-        crate::kmeans::kmeans(&self.image, i)
-        // return self.image.clone();
+    pub fn get_image_with_kmeans(&mut self, k: usize) -> image::RgbImage {
+        crate::kmeans::kmeans(&self.image, k)
     }
 }
 
@@ -66,14 +49,12 @@ impl App {
             window.set_position(gtk::WindowPosition::Center);
             window.set_default_size(1000, 1000);
 
-            let flowbox = gtk::FlowBox::new();
-            flowbox.set_selection_mode(gtk::SelectionMode::None);
             let grid = gtk::Grid::new();
 
             let mut images: Vec<gtk::Image> = Vec::new();
+            let num_images = CONFIG.image_cols * CONFIG.image_rows;
 
-            let cols = 5;
-            for i in 0..25 {
+            for i in 0..CONFIG.image_rows * CONFIG.image_cols {
                 let pixelb = Pixbuf::new_from_file_at_size(
                     &CONFIG.image_path,
                     CONFIG.image_size,
@@ -89,9 +70,8 @@ impl App {
                 let event_box = gtk::EventBox::new();
                 event_box.add(&gtk_image);
 
-                event_box.connect_button_press_event(|_image, _event| {
-                    println!("Pressed image");
-                    // panic!("lol");
+                event_box.connect_button_press_event(move |_image, _event| {
+                    println!("Pressed image {}", i);
                     gtk::Inhibit(false)
                 });
 
@@ -103,35 +83,26 @@ impl App {
                 gtk_box.add(&label);
                 gtk_box.add(&event_box);
 
-                let row = i / cols;
-                let col = i % cols;
-                println!("Attach at: ({}, {})", row, col);
+                let row = (i / CONFIG.image_cols) as i32;
+                let col = (i % CONFIG.image_cols) as i32;
                 grid.attach(&gtk_box, col, row, 1, 1);
-
-                println!("Row spacing: {}", flowbox.get_row_spacing());
-                println!("Size: {:?}", gtk_box.get_size_request());
             }
 
             window.add(&grid);
 
             let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
-            thread::spawn(move || {
+            for i in 0..num_images {
                 let mut worker = Worker::new();
-                let mut i = 2;
-                loop {
+                let thread_tx = tx.clone();
+                thread::spawn(move || {
                     thread::sleep(Duration::from_millis(10));
-                    let image = worker.get_image(i);
-                    tx.send(image).expect("Failed to send");
-                    i += 1;
-                    if i == 17 {
-                        i = 2;
-                    }
-                }
-            });
+                    let image = worker.get_image_with_kmeans(i + 2);
+                    thread_tx.send((i, image)).expect("Failed to send");
+                });
+            }
 
-            let mut num = 0;
-            rx.attach(None, move |image| {
+            rx.attach(None, move |(i, image)| {
                 let (width, height) = image.dimensions();
                 let mut flattened = image.into_flat_samples();
                 let raw_pixels: &mut [u8] = flattened.as_mut_slice();
@@ -145,8 +116,7 @@ impl App {
                     height as i32,
                     width as i32 * 3,
                 );
-                println!("Length: {}", images.len());
-                let gtk_image = &images[num];
+                let gtk_image = &images[i];
                 let old_pixel_buf = gtk_image.get_pixbuf().unwrap();
                 let (display_width, display_height) =
                     (old_pixel_buf.get_width(), old_pixel_buf.get_height());
@@ -159,12 +129,9 @@ impl App {
                     .expect("Failed to scale");
 
                 gtk_image.set_from_pixbuf(Some(&scaled_pixbuf));
-                num = (num + 1) % 15;
 
                 glib::Continue(true)
             });
-
-            println!("{:?}", window.get_size());
 
             window.show_all();
         });
