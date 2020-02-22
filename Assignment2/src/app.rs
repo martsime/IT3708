@@ -18,17 +18,13 @@ struct Worker {
 
 impl Worker {
     pub fn new() -> Self {
-        let image: image::RgbImage = match image::open("training/86016/Test image.jpg") {
+        let image: image::RgbImage = match image::open("training/147091/Test image.jpg") {
             Ok(image) => image.into_rgb(),
             Err(_) => panic!("Unable to load image!"),
         };
         println!("Loaded image!");
 
         println!("Image size: {:?}", image.dimensions());
-
-        for pixel in image.pixels() {
-            println!("Pixel: {:?}", pixel);
-        }
 
         Worker { image: image }
     }
@@ -37,14 +33,16 @@ impl Worker {
         let mut rng = rand::thread_rng();
         let (width, height) = self.image.dimensions();
 
+        /*
         for _ in 0..1000 {
             let x = rng.gen_range(0, width);
             let y = rng.gen_range(0, height);
 
             self.image.put_pixel(x, y, image::Rgb([0, 0, 0]));
         }
+        */
 
-        self.image.clone()
+        crate::kmeans::kmeans(&self.image, 20)
     }
 }
 
@@ -67,34 +65,49 @@ impl App {
             window.set_position(gtk::WindowPosition::Center);
             window.set_default_size(1000, 1000);
 
-            let pixelb = Pixbuf::new_from_file_at_size("training/86016/Test image.jpg", 400, 400);
+            let flowbox = gtk::FlowBox::new();
+            flowbox.set_selection_mode(gtk::SelectionMode::None);
+            let grid = gtk::Grid::new();
 
-            let gtk_image = match pixelb {
-                Ok(buf) => gtk::Image::new_from_pixbuf(Some(&buf)),
-                Err(_) => {
-                    panic!("Failed to load pixelbuffer");
-                }
-            };
+            let mut images: Vec<gtk::Image> = Vec::new();
 
-            let text_buffer = gtk::EntryBuffer::new(Some("10"));
-            let text_input = gtk::Entry::new_with_buffer(&text_buffer);
-            text_input.set_size_request(175, 20);
-            let space = gtk::Label::new(None);
-            space.set_size_request(200, 10);
+            let cols = 5;
+            for i in 0..25 {
+                let pixelb =
+                    Pixbuf::new_from_file_at_size("training/147091/Test image.jpg", 300, 300);
+                let gtk_image = match pixelb {
+                    Ok(buf) => gtk::Image::new_from_pixbuf(Some(&buf)),
+                    Err(_) => {
+                        panic!("Failed to load pixelbuffer");
+                    }
+                };
 
-            let grid_layout = gtk::Grid::new();
-            let button = gtk::Button::new_with_label("Load");
-            button.set_size_request(25, 20);
-            let text_buffer_clone = text_buffer.clone();
-            button.connect_clicked(move |_| {
-                println!("Hello world: {}", text_buffer_clone.get_text());
-            });
-            grid_layout.attach(&text_input, 0, 0, 1, 1);
-            grid_layout.attach(&button, 1, 0, 1, 1);
-            grid_layout.attach(&space, 0, 1, 2, 1);
-            grid_layout.attach(&gtk_image, 0, 2, 2, 1);
+                let event_box = gtk::EventBox::new();
+                event_box.add(&gtk_image);
 
-            window.add(&grid_layout);
+                event_box.connect_button_press_event(|_image, _event| {
+                    println!("Pressed image");
+                    gtk::Inhibit(false)
+                });
+
+                images.push(gtk_image.clone());
+
+                let label = gtk::Label::new(Some(&format!("Child: {}", i + 1)));
+
+                let gtk_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
+                gtk_box.add(&label);
+                gtk_box.add(&event_box);
+
+                let row = i / cols;
+                let col = i % cols;
+                println!("Attach at: ({}, {})", row, col);
+                grid.attach(&gtk_box, col, row, 1, 1);
+
+                println!("Row spacing: {}", flowbox.get_row_spacing());
+                println!("Size: {:?}", gtk_box.get_size_request());
+            }
+
+            window.add(&grid);
 
             let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
@@ -107,6 +120,7 @@ impl App {
                 }
             });
 
+            let mut num = 0;
             rx.attach(None, move |image| {
                 let (width, height) = image.dimensions();
                 let mut flattened = image.into_flat_samples();
@@ -121,8 +135,21 @@ impl App {
                     height as i32,
                     width as i32 * 3,
                 );
+                println!("Length: {}", images.len());
+                let gtk_image = &images[num];
+                let old_pixel_buf = gtk_image.get_pixbuf().unwrap();
+                let (display_width, display_height) =
+                    (old_pixel_buf.get_width(), old_pixel_buf.get_height());
+                let scaled_pixbuf = pixbuf
+                    .scale_simple(
+                        display_width,
+                        display_height,
+                        gdk_pixbuf::InterpType::Bilinear,
+                    )
+                    .expect("Failed to scale");
 
-                gtk_image.set_from_pixbuf(Some(&pixbuf));
+                gtk_image.set_from_pixbuf(Some(&scaled_pixbuf));
+                num = (num + 1) % 25;
 
                 glib::Continue(true)
             });
