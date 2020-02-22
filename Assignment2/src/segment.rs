@@ -1,6 +1,8 @@
+use crate::config::CONFIG;
 use crate::matrix::{Matrix, Pos};
 
-use crate::config::CONFIG;
+pub type SegmentMatrix = Matrix<usize>;
+pub type VisitMatrix = Matrix<bool>;
 
 #[derive(Clone)]
 pub struct Segment {
@@ -9,17 +11,20 @@ pub struct Segment {
     pub size: usize,
 }
 
+pub struct SegmentContainer {
+    pub segments: Vec<Segment>,
+}
+
 impl Segment {
+    /// From a given Pos, use a depth first search to create a segment
     pub fn from_matrix_pos(
         pos: &Pos,
         segment_matrix: &SegmentMatrix,
         visited: &mut VisitMatrix,
-    ) -> Self {
-        let mut positions: Vec<Pos> = Vec::new();
-
+    ) -> Segment {
         let segment_value = segment_matrix.get_pos(&pos).clone();
-
-        let mut stack: Vec<Pos> = Vec::with_capacity(1000);
+        let mut positions: Vec<Pos> = Vec::new();
+        let mut stack: Vec<Pos> = Vec::new();
         stack.push(pos.clone());
         while !stack.is_empty() {
             let current_pos = stack.pop().expect("Non empty stack");
@@ -43,6 +48,8 @@ impl Segment {
         }
     }
 
+    /// Check all neighbour pixels of the segment and find the neighbour segment
+    /// with most connections to the current segment
     pub fn get_dominant_neighbour(
         &self,
         segment_matrix: &SegmentMatrix,
@@ -59,16 +66,13 @@ impl Segment {
             }
         }
 
-        let mut largest_index = 0;
-        let mut largest_val: i32 = -1;
-        for (index, value) in counts.iter().enumerate() {
-            if *value as i32 >= largest_val {
-                largest_val = *value as i32;
-                largest_index = index;
-            }
+        if let Some((largest_index, _value)) =
+            counts.iter().enumerate().max_by(|(_, a), (_, b)| a.cmp(&b))
+        {
+            largest_index
+        } else {
+            panic!("Could not find largest neighbour");
         }
-
-        return largest_index;
     }
 
     pub fn merge_in(&mut self, other: &Segment) {
@@ -77,35 +81,38 @@ impl Segment {
     }
 }
 
-pub struct SegmentContainer {
-    pub segments: Vec<Segment>,
-}
-
 impl SegmentContainer {
-    pub fn new_from_vec(segments: Vec<Segment>) -> Self {
-        Self { segments: segments }
+    pub fn new_from_vec(segments: Vec<Segment>) -> SegmentContainer {
+        SegmentContainer { segments: segments }
     }
     fn get_smallest_index(&self) -> usize {
-        let mut smallest: usize = 1_000_000;
-        let mut smallest_i: usize = 0;
-        for (i, segment) in self.segments.iter().enumerate() {
-            if segment.size <= smallest {
-                smallest_i = i;
-                smallest = segment.size;
-            }
+        if let Some((index, _segment)) = self
+            .segments
+            .iter()
+            .enumerate()
+            .min_by(|(_, a), (_, b)| a.size.cmp(&b.size))
+        {
+            index
+        } else {
+            panic!("Could not find smallest");
         }
-        smallest_i
     }
 
     fn get_segment_index(&self, number: usize) -> usize {
-        for (i, segment) in self.segments.iter().enumerate() {
-            if segment.number == number {
-                return i;
-            }
+        if let Some((index, _segment)) = self
+            .segments
+            .iter()
+            .enumerate()
+            .find(|(_, segment)| segment.number == number)
+        {
+            index
+        } else {
+            panic!("Could not find segment with number: {}", number);
         }
-        panic!("Could not find segment with number: {}", number);
     }
 
+    /// Find the smallest segment and merge it with its
+    /// most connecting neighbour segment
     pub fn merge_smallest(
         &mut self,
         segment_matrix: &SegmentMatrix,
@@ -114,27 +121,19 @@ impl SegmentContainer {
         // Merges smallest into neighbour and returns neighbour
         let smallest_index = self.get_smallest_index();
         let smallest = self.segments[smallest_index].clone();
-        match smallest.size < CONFIG.min_seg_size {
-            true => {
-                let neighour_number =
-                    smallest.get_dominant_neighbour(segment_matrix, highest_value);
-                let neighbour_index = self.get_segment_index(neighour_number);
-                if smallest_index == neighbour_index {
-                    panic!("Not allowed!");
-                }
-                let neighbour = &mut self.segments[neighbour_index];
-                neighbour.merge_in(&smallest);
-                let new_segment = neighbour.clone();
-                self.segments.remove(smallest_index);
-                Some(new_segment)
-            }
-            false => None,
+        if smallest.size < CONFIG.min_seg_size {
+            let neighour_number = smallest.get_dominant_neighbour(segment_matrix, highest_value);
+            let neighbour_index = self.get_segment_index(neighour_number);
+            let neighbour = &mut self.segments[neighbour_index];
+            neighbour.merge_in(&smallest);
+            let new_segment = neighbour.clone();
+            self.segments.remove(smallest_index);
+            Some(new_segment)
+        } else {
+            None
         }
     }
 }
-
-pub type SegmentMatrix = Matrix<usize>;
-pub type VisitMatrix = Matrix<bool>;
 
 impl VisitMatrix {
     pub fn new_default(width: usize, height: usize) -> Self {
@@ -143,6 +142,8 @@ impl VisitMatrix {
 }
 
 impl SegmentMatrix {
+    /// Does a depth first search to find all N segments in the matrix
+    /// and update the matrix values so numbers are in 0..N
     pub fn clean(&mut self) {
         let mut visited = VisitMatrix::new_default(self.width, self.height);
 
@@ -151,27 +152,26 @@ impl SegmentMatrix {
         for y in 0..self.height {
             for x in 0..self.width {
                 let pos = Pos::new(y, x);
+
+                // If pos not visited yet, create a segment from it
                 if !visited.get_pos(&pos) {
-                    self.dfs_clean(pos, segment_number, &mut visited);
+                    let segment_value = self.get_pos(&pos).clone();
+                    let mut stack: Vec<Pos> = Vec::with_capacity(self.length);
+                    stack.push(pos);
+                    while !stack.is_empty() {
+                        let current_pos = stack.pop().expect("Empty stack");
+                        visited.set_at_pos(true, &current_pos);
+                        self.set_at_pos(segment_number, &current_pos);
+                        for new_pos in self.get_neighbours(&current_pos).into_iter() {
+                            // If not visited and in same segment
+                            if !visited.get_pos(&new_pos)
+                                && *self.get_pos(&new_pos) == segment_value
+                            {
+                                stack.push(new_pos);
+                            }
+                        }
+                    }
                     segment_number += 1;
-                }
-            }
-        }
-    }
-
-    fn dfs_clean(&mut self, pos: Pos, seg_number: usize, visited: &mut VisitMatrix) {
-        let segment_value = self.get_pos(&pos).clone();
-
-        let mut stack: Vec<Pos> = Vec::with_capacity(self.length);
-        stack.push(pos);
-        while !stack.is_empty() {
-            let current_pos = stack.pop().expect("Non empty stack");
-            visited.set_at_pos(true, &current_pos);
-            self.set_at_pos(seg_number, &current_pos);
-            for new_pos in self.get_neighbours(&current_pos).into_iter() {
-                // If not visited and in same segment
-                if !visited.get_pos(&new_pos) && *self.get_pos(&new_pos) == segment_value {
-                    stack.push(new_pos);
                 }
             }
         }
