@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::matrix::{Matrix, Pos};
 
 use crate::config::CONFIG;
@@ -116,7 +114,6 @@ impl SegmentContainer {
         // Merges smallest into neighbour and returns neighbour
         let smallest_index = self.get_smallest_index();
         let smallest = self.segments[smallest_index].clone();
-        // println!("Smallest: {}", smallest_index);
         match smallest.size < CONFIG.min_seg_size {
             true => {
                 let neighour_number =
@@ -127,7 +124,6 @@ impl SegmentContainer {
                 }
                 let neighbour = &mut self.segments[neighbour_index];
                 neighbour.merge_in(&smallest);
-                println!("Merging {} into {}", smallest_index, neighbour_index);
                 let new_segment = neighbour.clone();
                 self.segments.remove(smallest_index);
                 Some(new_segment)
@@ -202,7 +198,6 @@ impl SegmentMatrix {
         let mut segments = self.get_segments();
 
         let highest_value = segments.segments.len();
-        println!("Segments before merge: {}", segments.segments.len());
         loop {
             match segments.merge_smallest(&self, highest_value) {
                 Some(new_segment) => {
@@ -215,7 +210,5 @@ impl SegmentMatrix {
                 }
             };
         }
-
-        println!("Segments left: {}", segments.segments.len());
     }
 }

@@ -28,10 +28,6 @@ pub fn kmeans(image: &RgbImage, k: usize) -> RgbImage {
         }
     }
 
-    for (cluster, indices) in kmeans.clusters().iter() {
-        println!("Cluster: {:?}, {}", cluster, indices.len());
-    }
-
     matrix.clean();
     matrix.merge();
     matrix.clean();
@@ -40,7 +36,6 @@ pub fn kmeans(image: &RgbImage, k: usize) -> RgbImage {
 
     let mut colors: Vec<Rgb<u8>> = Vec::new();
     for segment in segments.segments.iter() {
-        println!("Segment number: {}", segment.number);
         let mut r: f64 = 0.0;
         let mut g: f64 = 0.0;
         let mut b: f64 = 0.0;
