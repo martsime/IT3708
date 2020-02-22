@@ -6,7 +6,7 @@ use gdk_pixbuf::{Colorspace, Pixbuf};
 use std::thread;
 use std::time::Duration;
 
-use rand::Rng;
+use crate::config::CONFIG;
 
 pub struct App {
     gui: gtk::Application,
@@ -18,7 +18,7 @@ struct Worker {
 
 impl Worker {
     pub fn new() -> Self {
-        let image: image::RgbImage = match image::open("training/147091/Test image.jpg") {
+        let image: image::RgbImage = match image::open(&CONFIG.image_path) {
             Ok(image) => image.into_rgb(),
             Err(_) => panic!("Unable to load image!"),
         };
@@ -73,8 +73,11 @@ impl App {
 
             let cols = 5;
             for i in 0..25 {
-                let pixelb =
-                    Pixbuf::new_from_file_at_size("training/147091/Test image.jpg", 300, 300);
+                let pixelb = Pixbuf::new_from_file_at_size(
+                    &CONFIG.image_path,
+                    CONFIG.image_size,
+                    CONFIG.image_size,
+                );
                 let gtk_image = match pixelb {
                     Ok(buf) => gtk::Image::new_from_pixbuf(Some(&buf)),
                     Err(_) => {
