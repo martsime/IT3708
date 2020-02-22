@@ -8,6 +8,9 @@ pub struct Config {
 
     #[envconfig(from = "IMAGE_PATH", default = "training/147091/Test image.jpg")]
     pub image_path: String,
+
+    #[envconfig(from = "MIN_SEG_SIZE", default = "100")]
+    pub min_seg_size: usize,
 }
 
 lazy_static! {

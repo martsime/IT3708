@@ -7,6 +7,8 @@ extern crate gtk;
 mod app;
 mod config;
 mod kmeans;
+mod matrix;
+mod segment;
 
 use app::App;
 

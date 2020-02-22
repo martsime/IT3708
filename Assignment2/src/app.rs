@@ -29,7 +29,7 @@ impl Worker {
         Worker { image: image }
     }
 
-    pub fn get_image(&mut self) -> image::RgbImage {
+    pub fn get_image(&mut self, i: usize) -> image::RgbImage {
         let mut rng = rand::thread_rng();
         let (width, height) = self.image.dimensions();
 
@@ -42,7 +42,8 @@ impl Worker {
         }
         */
 
-        crate::kmeans::kmeans(&self.image, 20)
+        crate::kmeans::kmeans(&self.image, i)
+        // return self.image.clone();
     }
 }
 
@@ -90,12 +91,13 @@ impl App {
 
                 event_box.connect_button_press_event(|_image, _event| {
                     println!("Pressed image");
+                    // panic!("lol");
                     gtk::Inhibit(false)
                 });
 
                 images.push(gtk_image.clone());
 
-                let label = gtk::Label::new(Some(&format!("Child: {}", i + 1)));
+                let label = gtk::Label::new(Some(&format!("Child: {}", i + 2)));
 
                 let gtk_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
                 gtk_box.add(&label);
@@ -116,10 +118,15 @@ impl App {
 
             thread::spawn(move || {
                 let mut worker = Worker::new();
+                let mut i = 2;
                 loop {
                     thread::sleep(Duration::from_millis(10));
-                    let image = worker.get_image();
+                    let image = worker.get_image(i);
                     tx.send(image).expect("Failed to send");
+                    i += 1;
+                    if i == 17 {
+                        i = 2;
+                    }
                 }
             });
 
@@ -152,7 +159,7 @@ impl App {
                     .expect("Failed to scale");
 
                 gtk_image.set_from_pixbuf(Some(&scaled_pixbuf));
-                num = (num + 1) % 25;
+                num = (num + 1) % 15;
 
                 glib::Continue(true)
             });
