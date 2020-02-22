@@ -11,6 +11,9 @@ gdk-pixbuf = "0.8.0"
 glib = "0.9.3"
 image = "0.23.0"
 rand = "0.7.3"
+cogset = "0.2.0"
+gdk = "0.12.1"
+lazy_static = "1.4.0"
 
 [dependencies.gtk]
 gtk = "0.8.1"
