@@ -27,7 +27,7 @@ impl Worker {
 
     pub fn get_image_with_kmeans(&mut self, k: usize) -> image::RgbImage {
         let segment_matrix = crate::kmeans::kmeans(&self.image, k);
-        segment_matrix.into_image(&self.image)
+        segment_matrix.into_centroid_image(&self.image)
     }
 }
 

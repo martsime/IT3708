@@ -82,6 +82,26 @@ impl Segment {
         self.positions.extend(other.positions.iter().cloned());
         self.size = self.positions.len();
     }
+
+    pub fn get_pixel_centroid(&self, image: &RgbImage) -> Rgb<u8> {
+        // Calcute average color for each segment
+        let mut r: f64 = 0.0;
+        let mut g: f64 = 0.0;
+        let mut b: f64 = 0.0;
+        for pos in self.positions.iter() {
+            let rgb = image.get_pixel(pos.x as u32, pos.y as u32);
+            r += rgb[0] as f64;
+            g += rgb[1] as f64;
+            b += rgb[2] as f64;
+        }
+        let pixels = self.size as f64;
+        let centroid_pixel = Rgb([
+            (r / pixels).round() as u8,
+            (g / pixels).round() as u8,
+            (b / pixels).round() as u8,
+        ]);
+        centroid_pixel
+    }
 }
 
 impl SegmentContainer {
@@ -226,28 +246,14 @@ impl SegmentMatrix {
         self.clean();
     }
 
-    pub fn into_image(&self, image: &RgbImage) -> RgbImage {
+    pub fn into_centroid_image(&self, image: &RgbImage) -> RgbImage {
         let segments = self.get_segments();
 
         // Calcute average color for each segment
-        let mut colors: Vec<Rgb<u8>> = Vec::new();
-        for segment in segments.iter() {
-            let mut r: f64 = 0.0;
-            let mut g: f64 = 0.0;
-            let mut b: f64 = 0.0;
-            for pos in segment.positions.iter() {
-                let rgb = image.get_pixel(pos.x as u32, pos.y as u32);
-                r += rgb[0] as f64;
-                g += rgb[1] as f64;
-                b += rgb[2] as f64;
-            }
-            let pixels = segment.size as f64;
-            colors.push(Rgb([
-                (r / pixels).round() as u8,
-                (g / pixels).round() as u8,
-                (b / pixels).round() as u8,
-            ]));
-        }
+        let colors: Vec<Rgb<u8>> = segments
+            .iter()
+            .map(|segment| segment.get_pixel_centroid(&image))
+            .collect();
 
         let mut new_image = RgbImage::new(self.width as u32, self.height as u32);
         for y in 0..self.height {

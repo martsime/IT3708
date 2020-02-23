@@ -6,13 +6,7 @@ use crate::segment::SegmentMatrix;
 pub fn kmeans(image: &RgbImage, k: usize) -> SegmentMatrix {
     let data: Vec<Euclid<[f64; 3]>> = image
         .pixels()
-        .map(|pixel| {
-            let r = pixel[0] as f64;
-            let g = pixel[1] as f64;
-            let b = pixel[2] as f64;
-            let euclid = Euclid([r, g, b]);
-            euclid
-        })
+        .map(|pix| Euclid([pix[0] as f64, pix[1] as f64, pix[2] as f64]))
         .collect();
 
     let kmeans = Kmeans::new(data.as_slice(), k);
