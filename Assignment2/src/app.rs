@@ -26,7 +26,8 @@ impl Worker {
     }
 
     pub fn get_image_with_kmeans(&mut self, k: usize) -> image::RgbImage {
-        crate::kmeans::kmeans(&self.image, k)
+        let segment_matrix = crate::kmeans::kmeans(&self.image, k);
+        segment_matrix.into_image(&self.image)
     }
 }
 
@@ -96,7 +97,6 @@ impl App {
                 let mut worker = Worker::new();
                 let thread_tx = tx.clone();
                 thread::spawn(move || {
-                    thread::sleep(Duration::from_millis(10));
                     let image = worker.get_image_with_kmeans(i + 2);
                     thread_tx.send((i, image)).expect("Failed to send");
                 });

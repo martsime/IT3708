@@ -1,3 +1,5 @@
+use image::{Rgb, RgbImage};
+
 use crate::config::CONFIG;
 use crate::matrix::{Matrix, Pos};
 
@@ -12,7 +14,7 @@ pub struct Segment {
 }
 
 pub struct SegmentContainer {
-    pub segments: Vec<Segment>,
+    segments: Vec<Segment>,
 }
 
 impl Segment {
@@ -75,6 +77,7 @@ impl Segment {
         }
     }
 
+    /// Merge the other segment into self
     pub fn merge_in(&mut self, other: &Segment) {
         self.positions.extend(other.positions.iter().cloned());
         self.size = self.positions.len();
@@ -85,6 +88,15 @@ impl SegmentContainer {
     pub fn new_from_vec(segments: Vec<Segment>) -> SegmentContainer {
         SegmentContainer { segments: segments }
     }
+
+    pub fn iter(&self) -> std::slice::Iter<Segment> {
+        self.segments.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.segments.len()
+    }
+
     fn get_smallest_index(&self) -> usize {
         if let Some((index, _segment)) = self
             .segments
@@ -195,9 +207,10 @@ impl SegmentMatrix {
     }
 
     pub fn merge(&mut self) {
+        self.clean();
         let mut segments = self.get_segments();
 
-        let highest_value = segments.segments.len();
+        let highest_value = segments.len();
         loop {
             match segments.merge_smallest(&self, highest_value) {
                 Some(new_segment) => {
@@ -210,5 +223,40 @@ impl SegmentMatrix {
                 }
             };
         }
+        self.clean();
+    }
+
+    pub fn into_image(&self, image: &RgbImage) -> RgbImage {
+        let segments = self.get_segments();
+
+        // Calcute average color for each segment
+        let mut colors: Vec<Rgb<u8>> = Vec::new();
+        for segment in segments.iter() {
+            let mut r: f64 = 0.0;
+            let mut g: f64 = 0.0;
+            let mut b: f64 = 0.0;
+            for pos in segment.positions.iter() {
+                let rgb = image.get_pixel(pos.x as u32, pos.y as u32);
+                r += rgb[0] as f64;
+                g += rgb[1] as f64;
+                b += rgb[2] as f64;
+            }
+            let pixels = segment.size as f64;
+            colors.push(Rgb([
+                (r / pixels).round() as u8,
+                (g / pixels).round() as u8,
+                (b / pixels).round() as u8,
+            ]));
+        }
+
+        let mut new_image = RgbImage::new(self.width as u32, self.height as u32);
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let value = self.get_pos(&Pos::new(y, x));
+                let color = colors[*value];
+                new_image.put_pixel(x as u32, y as u32, color);
+            }
+        }
+        new_image
     }
 }
