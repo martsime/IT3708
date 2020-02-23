@@ -34,7 +34,7 @@ impl Segment {
                 continue;
             }
             visited.set_at_pos(true, &current_pos);
-            for new_pos in segment_matrix.get_neighbours(&current_pos).into_iter() {
+            for new_pos in segment_matrix.get_sides(&current_pos).into_iter() {
                 // If not visited and in same segment
                 if !visited.get_pos(&new_pos) && *segment_matrix.get_pos(&new_pos) == segment_value
                 {
@@ -60,7 +60,7 @@ impl Segment {
         let mut counts = vec![0; num_segments];
 
         for pos in self.positions.iter() {
-            for new_pos in segment_matrix.get_neighbours(&pos).into_iter() {
+            for new_pos in segment_matrix.get_sides(&pos).into_iter() {
                 let segment_value = segment_matrix.get_pos(&new_pos).clone();
                 if segment_value != self.number {
                     counts[segment_value] += 1;
@@ -194,7 +194,7 @@ impl SegmentMatrix {
                         let current_pos = stack.pop().expect("Empty stack");
                         visited.set_at_pos(true, &current_pos);
                         self.set_at_pos(segment_number, &current_pos);
-                        for new_pos in self.get_neighbours(&current_pos).into_iter() {
+                        for new_pos in self.get_sides(&current_pos).into_iter() {
                             // If not visited and in same segment
                             if !visited.get_pos(&new_pos)
                                 && *self.get_pos(&new_pos) == segment_value

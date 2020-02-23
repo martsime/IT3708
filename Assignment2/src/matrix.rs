@@ -1,3 +1,5 @@
+use lazy_static::*;
+
 #[derive(Clone, Debug)]
 pub struct Pos {
     pub y: i32,
@@ -19,6 +21,25 @@ impl Pos {
     pub fn add(&self, other: &Pos) -> Pos {
         Pos::new(self.y + other.y, self.x + other.x)
     }
+}
+
+lazy_static! {
+    pub static ref FOUR_DIRECTIONS: Vec<Pos> = vec![
+        Pos::new(-1, 0), // N
+        Pos::new(0, 1),  // E
+        Pos::new(1, 0),  // S
+        Pos::new(0, -1), // W
+    ];
+    pub static ref EIGHT_DIRECTIONS: Vec<Pos> = vec![
+        Pos::new(-1, 0), // N
+        Pos::new(-1, 1), // NE
+        Pos::new(0, 1),  // E
+        Pos::new(1, 1),  // SE
+        Pos::new(1, 0),  // S
+        Pos::new(1, -1), // SW
+        Pos::new(0, -1), // W
+        Pos::new(-1, -1),// NW
+    ];
 }
 
 pub struct Matrix<T> {
@@ -60,26 +81,26 @@ where
         self.set(value, pos.y as usize * self.width + pos.x as usize);
     }
 
-    pub fn get_neighbours(&self, pos: &Pos) -> Vec<Pos> {
-        let mut neighbours = Vec::with_capacity(4);
-        // North
-        if pos.y >= 1 {
-            neighbours.push(Pos::new(pos.y - 1, pos.x));
-        }
-        // South
-        if pos.y as usize <= self.height - 2 {
-            neighbours.push(Pos::new(pos.y + 1, pos.x));
-        }
-        // West
-        if pos.x >= 1 {
-            neighbours.push(Pos::new(pos.y, pos.x - 1));
-        }
-        // South
-        if pos.x as usize <= self.width - 2 {
-            neighbours.push(Pos::new(pos.y, pos.x + 1));
-        }
+    fn get_valid_pos(&self, pos: &Pos, delta_pos: &Vec<Pos>) -> Vec<Pos> {
+        delta_pos
+            .iter()
+            .filter_map(|direction| {
+                let new_pos = pos.add(direction);
+                if self.validate_pos(&new_pos) {
+                    Some(new_pos)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
 
-        neighbours
+    pub fn get_sides(&self, pos: &Pos) -> Vec<Pos> {
+        self.get_valid_pos(pos, &FOUR_DIRECTIONS)
+    }
+
+    pub fn get_neighbours(&self, pos: &Pos) -> Vec<Pos> {
+        self.get_valid_pos(pos, &EIGHT_DIRECTIONS)
     }
 
     pub fn validate_pos(&self, pos: &Pos) -> bool {
