@@ -183,7 +183,7 @@ impl SegmentMatrix {
 
         for y in 0..self.height {
             for x in 0..self.width {
-                let pos = Pos::new(y, x);
+                let pos = Pos::new_usize(y, x);
 
                 // If pos not visited yet, create a segment from it
                 if !visited.get_pos(&pos) {
@@ -215,7 +215,7 @@ impl SegmentMatrix {
         let mut segments: Vec<Segment> = Vec::new();
         for y in 0..self.height {
             for x in 0..self.width {
-                let pos = Pos::new(y, x);
+                let pos = Pos::new_usize(y, x);
                 if !visited.get_pos(&pos) {
                     let new_segment = Segment::from_matrix_pos(&pos, &self, &mut visited);
                     segments.push(new_segment);
@@ -258,7 +258,7 @@ impl SegmentMatrix {
         let mut new_image = RgbImage::new(self.width as u32, self.height as u32);
         for y in 0..self.height {
             for x in 0..self.width {
-                let value = self.get_pos(&Pos::new(y, x));
+                let value = self.get_pos(&Pos::new_usize(y, x));
                 let color = colors[*value];
                 new_image.put_pixel(x as u32, y as u32, color);
             }
