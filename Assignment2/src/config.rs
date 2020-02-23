@@ -6,7 +6,7 @@ pub struct Config {
     #[envconfig(from = "IMAGE_SIZE", default = "300")]
     pub image_size: i32,
 
-    #[envconfig(from = "IMAGE_PATH", default = "training/147091/Test image.jpg")]
+    #[envconfig(from = "IMAGE_PATH", default = "training/176035/Test image.jpg")]
     pub image_path: String,
 
     #[envconfig(from = "IMAGE_ROWS", default = "4")]
@@ -20,6 +20,12 @@ pub struct Config {
 
     #[envconfig(from = "THREADS", default = "12")]
     pub threads: usize,
+
+    #[envconfig(from = "POPULATION_SIZE", default = "16")]
+    pub population_size: usize,
+
+    #[envconfig(from = "KMEANS", default = "16")]
+    pub kmeans: usize,
 }
 
 lazy_static! {

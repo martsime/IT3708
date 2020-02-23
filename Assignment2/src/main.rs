@@ -6,9 +6,12 @@ extern crate gtk;
 
 mod app;
 mod config;
+mod gui;
 mod kmeans;
 mod matrix;
 mod segment;
+mod simulation;
+mod utils;
 
 use app::App;
 

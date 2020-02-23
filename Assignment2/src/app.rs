@@ -1,33 +1,60 @@
-use gio::prelude::*;
-use gtk::prelude::*;
-
-use gdk_pixbuf::{Colorspace, Pixbuf};
-
+use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
+use image::RgbImage;
+use rayon::prelude::*;
+
+use gio::prelude::*;
+use gtk::prelude::*;
+
+use glib::Sender;
+
 use crate::config::CONFIG;
+use crate::gui::Gui;
+use crate::segment::SegmentMatrix;
+use crate::simulation::Simulation;
 
 pub struct App {
-    gui: gtk::Application,
+    app: gtk::Application,
 }
 
 struct Worker {
     image: image::RgbImage,
+    simulation: Simulation,
+    channel: Sender<Vec<RgbImage>>,
 }
 
 impl Worker {
-    pub fn new() -> Self {
+    pub fn new(channel: Sender<Vec<RgbImage>>) -> Worker {
         let image: image::RgbImage = match image::open(&CONFIG.image_path) {
             Ok(image) => image.into_rgb(),
             Err(_) => panic!("Unable to load image!"),
         };
-        Worker { image: image }
+        Worker {
+            image: image,
+            simulation: Simulation::new(),
+            channel: channel,
+        }
     }
 
-    pub fn get_image_with_kmeans(&mut self, k: usize) -> image::RgbImage {
-        let segment_matrix = crate::kmeans::kmeans(&self.image, k);
-        segment_matrix.into_centroid_image(&self.image)
+    pub fn run(&mut self) {
+        let segment_matrices: Vec<SegmentMatrix> = (0..CONFIG.kmeans)
+            .into_par_iter()
+            .map(|i| crate::kmeans::kmeans(&self.image, i + 2))
+            .collect();
+
+        let images: Vec<RgbImage> = segment_matrices
+            .iter()
+            .map(|segment_matrix| segment_matrix.into_centroid_image(&self.image))
+            .collect();
+
+        println!("Images generated");
+        self.simulation.add_initial(segment_matrices);
+        self.simulation.population.evaluate(&self.image);
+        println!("Evaluated!");
+
+        self.channel.send(images).expect("Failed to send images");
     }
 }
 
@@ -38,11 +65,11 @@ impl App {
             Default::default(),
         )
         .expect("Initialization failed...");
-        App { gui: application }
+        App { app: application }
     }
 
     pub fn build(self) -> Self {
-        self.gui.connect_activate(|app| {
+        self.app.connect_activate(|app| {
             let window = gtk::ApplicationWindow::new(app);
 
             window.set_title("");
@@ -51,85 +78,22 @@ impl App {
             window.set_default_size(1000, 1000);
 
             let grid = gtk::Grid::new();
+            let gui = Gui::new();
+            gui.build();
+            gui.add_to_window(&window);
 
-            let mut images: Vec<gtk::Image> = Vec::new();
-            let num_images = CONFIG.image_cols * CONFIG.image_rows;
+            let (t_image_channel, r_image_channel) =
+                glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
-            for i in 0..CONFIG.image_rows * CONFIG.image_cols {
-                let pixelb = Pixbuf::new_from_file_at_size(
-                    &CONFIG.image_path,
-                    CONFIG.image_size,
-                    CONFIG.image_size,
-                );
-                let gtk_image = match pixelb {
-                    Ok(buf) => gtk::Image::new_from_pixbuf(Some(&buf)),
-                    Err(_) => {
-                        panic!("Failed to load pixelbuffer");
-                    }
-                };
+            thread::spawn(move || {
+                let mut worker = Worker::new(t_image_channel);
+                worker.run();
+            });
 
-                let event_box = gtk::EventBox::new();
-                event_box.add(&gtk_image);
-
-                event_box.connect_button_press_event(move |_image, _event| {
-                    println!("Pressed image {}", i);
-                    gtk::Inhibit(false)
-                });
-
-                images.push(gtk_image.clone());
-
-                let label = gtk::Label::new(Some(&format!("Child: {}", i + 2)));
-
-                let gtk_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
-                gtk_box.add(&label);
-                gtk_box.add(&event_box);
-
-                let row = (i / CONFIG.image_cols) as i32;
-                let col = (i % CONFIG.image_cols) as i32;
-                grid.attach(&gtk_box, col, row, 1, 1);
-            }
-
-            window.add(&grid);
-
-            let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-
-            for i in 0..num_images {
-                let mut worker = Worker::new();
-                let thread_tx = tx.clone();
-                thread::spawn(move || {
-                    let image = worker.get_image_with_kmeans(i + 2);
-                    thread_tx.send((i, image)).expect("Failed to send");
-                });
-            }
-
-            rx.attach(None, move |(i, image)| {
-                let (width, height) = image.dimensions();
-                let mut flattened = image.into_flat_samples();
-                let raw_pixels: &mut [u8] = flattened.as_mut_slice();
-
-                let pixbuf = Pixbuf::new_from_mut_slice(
-                    raw_pixels,
-                    Colorspace::Rgb,
-                    false,
-                    8,
-                    width as i32,
-                    height as i32,
-                    width as i32 * 3,
-                );
-                let gtk_image = &images[i];
-                let old_pixel_buf = gtk_image.get_pixbuf().unwrap();
-                let (display_width, display_height) =
-                    (old_pixel_buf.get_width(), old_pixel_buf.get_height());
-                let scaled_pixbuf = pixbuf
-                    .scale_simple(
-                        display_width,
-                        display_height,
-                        gdk_pixbuf::InterpType::Bilinear,
-                    )
-                    .expect("Failed to scale");
-
-                gtk_image.set_from_pixbuf(Some(&scaled_pixbuf));
-
+            r_image_channel.attach(None, move |images| {
+                for (i, image) in images.into_iter().enumerate() {
+                    gui.update_image(image, i);
+                }
                 glib::Continue(true)
             });
 
@@ -139,7 +103,7 @@ impl App {
     }
 
     pub fn run(self) -> Self {
-        self.gui.run(&[]);
+        self.app.run(&[]);
         self
     }
 }

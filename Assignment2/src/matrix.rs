@@ -42,6 +42,7 @@ lazy_static! {
     ];
 }
 
+#[derive(Clone)]
 pub struct Matrix<T> {
     data: Vec<T>,
     pub width: usize,
