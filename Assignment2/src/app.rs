@@ -1,6 +1,4 @@
-use std::sync::mpsc;
 use std::thread;
-use std::time::Duration;
 
 use image::RgbImage;
 use rayon::prelude::*;
@@ -44,16 +42,19 @@ impl Worker {
             .map(|i| crate::kmeans::kmeans(&self.image, i + 2))
             .collect();
 
-        let images: Vec<RgbImage> = segment_matrices
-            .iter()
-            .map(|segment_matrix| segment_matrix.into_centroid_image(&self.image))
-            .collect();
-
-        println!("Images generated");
         self.simulation.add_initial(segment_matrices);
         self.simulation.population.evaluate(&self.image);
         println!("Evaluated!");
+        let images: Vec<RgbImage> = self
+            .simulation
+            .population
+            .individuals
+            .iter()
+            .map(|individual| individual.segment_matrix.into_centroid_image(&self.image))
+            .collect();
 
+        self.simulation.population.get_fronts();
+        println!("Images generated");
         self.channel.send(images).expect("Failed to send images");
     }
 }
@@ -73,11 +74,13 @@ impl App {
             let window = gtk::ApplicationWindow::new(app);
 
             window.set_title("");
-            window.set_border_width(10);
+            window.set_border_width(CONFIG.gui_border as u32);
             window.set_position(gtk::WindowPosition::Center);
-            window.set_default_size(1000, 1000);
+            window.set_default_size(
+                CONFIG.gui_width + CONFIG.gui_border * 2,
+                CONFIG.gui_height + CONFIG.gui_border * 2,
+            );
 
-            let grid = gtk::Grid::new();
             let gui = Gui::new();
             gui.build();
             gui.add_to_window(&window);

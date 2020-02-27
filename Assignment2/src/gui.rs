@@ -1,46 +1,108 @@
+use std::f64::consts::PI;
+
 use image::RgbImage;
 
+use cairo::{Context, FontSlant, FontWeight, Format, ImageSurface};
 use gdk_pixbuf::{Colorspace, Pixbuf};
-use gio::prelude::*;
 use gtk::prelude::*;
 
 use crate::config::CONFIG;
 
 pub struct Gui {
+    original_image: gtk::Image,
     images: Vec<gtk::Image>,
     labels: Vec<gtk::Label>,
-    grid: gtk::Grid,
+    plot: gtk::Image,
+    container: gtk::Box,
 }
 
 impl Gui {
     pub fn new() -> Gui {
+        let original_image = Gui::generate_original_image();
         let images = Gui::generate_images();
-        let grid = gtk::Grid::new();
         let labels = Gui::generate_labels();
+        let plot = Gui::generate_plot();
+        let container = gtk::Box::new(gtk::Orientation::Horizontal, 10);
         Gui {
+            original_image: original_image,
             images: images,
-            grid: grid,
             labels: labels,
+            plot: plot,
+            container,
         }
     }
 
     pub fn add_to_window(&self, window: &gtk::ApplicationWindow) {
-        window.add(&self.grid);
+        window.add(&self.container);
+    }
+
+    fn generate_original_image() -> gtk::Image {
+        let pixbuf = gdk_pixbuf::Pixbuf::new_from_file_at_size(
+            &CONFIG.image_path,
+            CONFIG.original_image_size,
+            CONFIG.original_image_size,
+        )
+        .expect("Failed to load image");
+        gtk::Image::new_from_pixbuf(Some(&pixbuf))
     }
 
     fn generate_images() -> Vec<gtk::Image> {
+        let pixbuf = &gdk_pixbuf::Pixbuf::new_from_file_at_size(
+            &CONFIG.image_path,
+            CONFIG.image_size,
+            CONFIG.image_size,
+        )
+        .expect("Failed to load image");
         let mut images: Vec<gtk::Image> = Vec::new();
         for _ in 0..CONFIG.population_size {
-            let pixbuf = gdk_pixbuf::Pixbuf::new_from_file_at_size(
-                &CONFIG.image_path,
-                CONFIG.image_size,
-                CONFIG.image_size,
-            )
-            .expect("Failed to load image");
-            let image = gtk::Image::new_from_pixbuf(Some(&pixbuf));
+            let image = gtk::Image::new_from_pixbuf(Some(pixbuf));
             images.push(image);
         }
         images
+    }
+
+    fn generate_plot() -> gtk::Image {
+        let (width, height) = CONFIG.plot_size();
+        let surface =
+            ImageSurface::create(Format::Rgb24, width, height).expect("Unable to create surface");
+        let cr = Context::new(&surface);
+        cr.set_source_rgb(1.0, 1.0, 1.0);
+        cr.rectangle(0.0, 0.0, width as f64, height as f64);
+        cr.fill();
+
+        cr.select_font_face("Cairo", FontSlant::Normal, FontWeight::Normal);
+        cr.set_font_size(16.0);
+        let label_padding: f64 = 20.0;
+
+        // y-axis label
+        let text = "Hello world";
+        let te = cr.text_extents(&text);
+        cr.set_source_rgb(0.0, 0.0, 0.0);
+        cr.move_to(
+            label_padding + te.height / 2.0,
+            height as f64 / 2.0 + te.width / 2.0,
+        );
+        cr.rotate(-PI / 2.0);
+        cr.show_text(text);
+        cr.rotate(PI / 2.0);
+        cr.stroke();
+
+        // x-axis label
+        let text = "Hello world";
+        let te = cr.text_extents(&text);
+        cr.set_source_rgb(0.0, 0.0, 0.0);
+        cr.move_to(
+            width as f64 / 2.0 - te.width / 2.0,
+            height as f64 - label_padding / 2.0 - te.height / 2.0,
+        );
+        cr.show_text(text);
+        cr.stroke();
+
+        cr.set_line_width(1.0);
+        cr.set_source_rgb(1.0, 0.0, 0.0);
+        cr.rectangle(100.0, 100.0, 100.0, 100.0);
+        cr.stroke();
+        gtk::Image::new_from_surface(Some(&surface))
     }
 
     fn generate_labels() -> Vec<gtk::Label> {
@@ -54,16 +116,44 @@ impl Gui {
     }
 
     pub fn build(&self) {
-        let num_cols = (CONFIG.population_size as f64).sqrt().round() as usize;
+        // Left side
+        let left_scroll = gtk::ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
+        left_scroll.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Always);
+        left_scroll.set_hexpand(true);
+        left_scroll.set_vexpand(true);
+
+        let left_flowbox = gtk::FlowBox::new();
+        left_flowbox.set_orientation(gtk::Orientation::Horizontal);
+        left_flowbox.set_selection_mode(gtk::SelectionMode::None);
+        left_flowbox.set_max_children_per_line(1);
+
+        left_flowbox.add(&self.original_image);
+        left_flowbox.add(&self.plot);
+        left_flowbox.add(&Gui::generate_plot());
+        left_flowbox.add(&Gui::generate_plot());
+        left_scroll.add(&left_flowbox);
+
+        // Right side
+        let right_scroll = gtk::ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
+        right_scroll.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Always);
+        right_scroll.set_hexpand(true);
+        right_scroll.set_vexpand(true);
+
+        let right_flowbox = gtk::FlowBox::new();
+        right_flowbox.set_orientation(gtk::Orientation::Horizontal);
+        right_flowbox.set_selection_mode(gtk::SelectionMode::None);
+
         for i in 0..CONFIG.population_size {
             let gtk_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
             gtk_box.add(&self.labels[i]);
             gtk_box.add(&self.images[i]);
-
-            let row = (i / num_cols) as i32;
-            let col = (i % num_cols) as i32;
-            self.grid.attach(&gtk_box, col, row, 1, 1);
+            right_flowbox.add(&gtk_box);
         }
+
+        right_scroll.add(&right_flowbox);
+
+        self.container.add(&left_scroll);
+        self.container.add(&right_scroll);
     }
 
     pub fn update_image(&self, image: RgbImage, number: usize) {
@@ -83,21 +173,12 @@ impl Gui {
             width as i32 * 3,
         );
 
-        // Calculate display size from config and keep ratio
-        let (display_width, display_height) = if width > height {
-            let scale_ratio = CONFIG.image_size as f64 / width as f64;
-            (CONFIG.image_size, (height as f64 * scale_ratio) as i32)
-        } else {
-            let scale_ratio = CONFIG.image_size as f64 / height as f64;
-            ((width as f64 * scale_ratio) as i32, CONFIG.image_size)
-        };
+        let current_pixbuf = gtk_image.get_pixbuf().expect("Failed to get pixbuf");
+        let image_width = current_pixbuf.get_width();
+        let image_height = current_pixbuf.get_height();
 
         let scaled_pixbuf = pixbuf
-            .scale_simple(
-                display_width,
-                display_height,
-                gdk_pixbuf::InterpType::Bilinear,
-            )
+            .scale_simple(image_width, image_height, gdk_pixbuf::InterpType::Bilinear)
             .expect("Failed to scale");
 
         gtk_image.set_from_pixbuf(Some(&scaled_pixbuf));

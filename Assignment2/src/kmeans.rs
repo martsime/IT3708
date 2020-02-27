@@ -12,13 +12,13 @@ pub fn kmeans(image: &RgbImage, k: usize) -> SegmentMatrix {
     let kmeans = Kmeans::new(data.as_slice(), k);
 
     let (width, height) = image.dimensions();
-    let mut matrix = SegmentMatrix::new(0, width as usize, height as usize);
+    let mut segment_matrix = SegmentMatrix::new(0, width as usize, height as usize);
     for (i, (_, indices)) in kmeans.clusters().iter().enumerate() {
         for index in indices.iter() {
-            matrix.set(i, *index);
+            segment_matrix.matrix.set(i, *index);
         }
     }
 
-    matrix.merge();
-    matrix
+    segment_matrix.merge_all();
+    segment_matrix
 }

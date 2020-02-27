@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate envconfig_derive;
 
+extern crate cairo;
 extern crate gio;
 extern crate gtk;
 

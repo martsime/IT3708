@@ -3,7 +3,6 @@ use image::{Rgb, RgbImage};
 use crate::config::CONFIG;
 use crate::matrix::{Matrix, Pos};
 
-pub type SegmentMatrix = Matrix<usize>;
 pub type VisitMatrix = Matrix<bool>;
 
 #[derive(Clone)]
@@ -13,8 +12,15 @@ pub struct Segment {
     pub size: usize,
 }
 
+#[derive(Clone)]
 pub struct SegmentContainer {
     segments: Vec<Segment>,
+}
+
+#[derive(Clone)]
+pub struct SegmentMatrix {
+    pub matrix: Matrix<usize>,
+    segments: Option<SegmentContainer>,
 }
 
 impl Segment {
@@ -24,7 +30,8 @@ impl Segment {
         segment_matrix: &SegmentMatrix,
         visited: &mut VisitMatrix,
     ) -> Segment {
-        let segment_value = segment_matrix.get_pos(&pos).clone();
+        let matrix = &segment_matrix.matrix;
+        let segment_value = matrix.get_pos(&pos).clone();
         let mut positions: Vec<Pos> = Vec::new();
         let mut stack: Vec<Pos> = Vec::new();
         stack.push(pos.clone());
@@ -34,10 +41,9 @@ impl Segment {
                 continue;
             }
             visited.set_at_pos(true, &current_pos);
-            for new_pos in segment_matrix.get_sides(&current_pos).into_iter() {
+            for new_pos in matrix.get_sides(&current_pos).into_iter() {
                 // If not visited and in same segment
-                if !visited.get_pos(&new_pos) && *segment_matrix.get_pos(&new_pos) == segment_value
-                {
+                if !visited.get_pos(&new_pos) && *matrix.get_pos(&new_pos) == segment_value {
                     stack.push(new_pos);
                 }
             }
@@ -58,10 +64,11 @@ impl Segment {
         num_segments: usize,
     ) -> usize {
         let mut counts = vec![0; num_segments];
+        let matrix = &segment_matrix.matrix;
 
         for pos in self.positions.iter() {
-            for new_pos in segment_matrix.get_sides(&pos).into_iter() {
-                let segment_value = segment_matrix.get_pos(&new_pos).clone();
+            for new_pos in matrix.get_sides(&pos).into_iter() {
+                let segment_value = matrix.get_pos(&new_pos).clone();
                 if segment_value != self.number {
                     counts[segment_value] += 1;
                 }
@@ -115,6 +122,10 @@ impl SegmentContainer {
 
     pub fn len(&self) -> usize {
         self.segments.len()
+    }
+
+    pub fn get(&self, index: usize) -> &Segment {
+        &self.segments[index]
     }
 
     fn get_smallest_index(&self) -> usize {
@@ -174,30 +185,37 @@ impl VisitMatrix {
 }
 
 impl SegmentMatrix {
+    pub fn new(init: usize, width: usize, height: usize) -> SegmentMatrix {
+        SegmentMatrix {
+            matrix: Matrix::new(init, width, height),
+            segments: None,
+        }
+    }
     /// Does a depth first search to find all N segments in the matrix
     /// and update the matrix values so numbers are in 0..N
     pub fn clean(&mut self) {
-        let mut visited = VisitMatrix::new_default(self.width, self.height);
+        let matrix = &mut self.matrix;
+        let mut visited = VisitMatrix::new_default(matrix.width, matrix.height);
 
         let mut segment_number = 0;
 
-        for y in 0..self.height {
-            for x in 0..self.width {
+        for y in 0..matrix.height {
+            for x in 0..matrix.width {
                 let pos = Pos::new_usize(y, x);
 
                 // If pos not visited yet, create a segment from it
                 if !visited.get_pos(&pos) {
-                    let segment_value = self.get_pos(&pos).clone();
-                    let mut stack: Vec<Pos> = Vec::with_capacity(self.length);
+                    let segment_value = matrix.get_pos(&pos).clone();
+                    let mut stack: Vec<Pos> = Vec::with_capacity(matrix.length);
                     stack.push(pos);
                     while !stack.is_empty() {
                         let current_pos = stack.pop().expect("Empty stack");
                         visited.set_at_pos(true, &current_pos);
-                        self.set_at_pos(segment_number, &current_pos);
-                        for new_pos in self.get_sides(&current_pos).into_iter() {
+                        matrix.set_at_pos(segment_number, &current_pos);
+                        for new_pos in matrix.get_sides(&current_pos).into_iter() {
                             // If not visited and in same segment
                             if !visited.get_pos(&new_pos)
-                                && *self.get_pos(&new_pos) == segment_value
+                                && *matrix.get_pos(&new_pos) == segment_value
                             {
                                 stack.push(new_pos);
                             }
@@ -210,11 +228,12 @@ impl SegmentMatrix {
     }
 
     pub fn get_segments(&self) -> SegmentContainer {
-        let mut visited = VisitMatrix::new_default(self.width, self.height);
+        let matrix = &self.matrix;
+        let mut visited = VisitMatrix::new_default(matrix.width, matrix.height);
 
         let mut segments: Vec<Segment> = Vec::new();
-        for y in 0..self.height {
-            for x in 0..self.width {
+        for y in 0..matrix.height {
+            for x in 0..matrix.width {
                 let pos = Pos::new_usize(y, x);
                 if !visited.get_pos(&pos) {
                     let new_segment = Segment::from_matrix_pos(&pos, &self, &mut visited);
@@ -226,7 +245,7 @@ impl SegmentMatrix {
         SegmentContainer::new_from_vec(segments)
     }
 
-    pub fn merge(&mut self) {
+    pub fn merge_all(&mut self) {
         self.clean();
         let mut segments = self.get_segments();
 
@@ -235,7 +254,7 @@ impl SegmentMatrix {
             match segments.merge_smallest(&self, highest_value) {
                 Some(new_segment) => {
                     for pos in new_segment.positions.iter() {
-                        self.set_at_pos(new_segment.number, pos);
+                        self.matrix.set_at_pos(new_segment.number, pos);
                     }
                 }
                 None => {
@@ -246,8 +265,15 @@ impl SegmentMatrix {
         self.clean();
     }
 
+    pub fn merge(&mut self, seg_one: &Segment, seg_two: &Segment) {
+        let mut new_segment = seg_one.clone();
+        new_segment.merge_in(seg_two);
+        self.clean();
+    }
+
     pub fn into_centroid_image(&self, image: &RgbImage) -> RgbImage {
         let segments = self.get_segments();
+        let matrix = &self.matrix;
 
         // Calcute average color for each segment
         let colors: Vec<Rgb<u8>> = segments
@@ -255,10 +281,10 @@ impl SegmentMatrix {
             .map(|segment| segment.get_pixel_centroid(&image))
             .collect();
 
-        let mut new_image = RgbImage::new(self.width as u32, self.height as u32);
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let value = self.get_pos(&Pos::new_usize(y, x));
+        let mut new_image = RgbImage::new(matrix.width as u32, matrix.height as u32);
+        for y in 0..matrix.height {
+            for x in 0..matrix.width {
+                let value = matrix.get_pos(&Pos::new_usize(y, x));
                 let color = colors[*value];
                 new_image.put_pixel(x as u32, y as u32, color);
             }
