@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::f64;
 
 use image::{Rgb, RgbImage};
 use rand::Rng;
@@ -8,6 +9,7 @@ use crate::matrix::Pos;
 use crate::segment::SegmentMatrix;
 use crate::utils;
 
+#[derive(Clone)]
 pub struct Fitness {
     pub edge_value: f64,
     pub connectivity: f64,
@@ -34,6 +36,10 @@ pub struct Simulation {
     pub population: Population,
 }
 
+pub struct Fronts {
+    pub layers: Vec<Vec<Individual>>,
+}
+
 impl Fitness {
     pub fn new(edge_value: f64, connectivity: f64, overall_deviation: f64) -> Fitness {
         Fitness {
@@ -42,6 +48,31 @@ impl Fitness {
             overall_deviation,
         }
     }
+
+    pub fn set_min(&mut self, other: &Fitness) {
+        if self.edge_value > other.edge_value {
+            self.edge_value = other.edge_value;
+        }
+        if self.connectivity > other.connectivity {
+            self.connectivity = other.connectivity
+        }
+        if self.overall_deviation > other.overall_deviation {
+            self.overall_deviation = other.overall_deviation
+        }
+    }
+
+    pub fn set_max(&mut self, other: &Fitness) {
+        if self.edge_value < other.edge_value {
+            self.edge_value = other.edge_value;
+        }
+        if self.connectivity < other.connectivity {
+            self.connectivity = other.connectivity
+        }
+        if self.overall_deviation < other.overall_deviation {
+            self.overall_deviation = other.overall_deviation
+        }
+    }
+
     pub fn dominates(&self, other: &Fitness) -> bool {
         let v1 = self.get_values();
         let v2 = other.get_values();
@@ -129,6 +160,13 @@ impl Individual {
         }
     }
 
+    pub fn clone_with_fitness(&self) -> Individual {
+        Individual {
+            segment_matrix: self.segment_matrix.clone(),
+            fitness: self.fitness.clone(),
+        }
+    }
+
     pub fn evaluate(&mut self, image: &RgbImage) {
         let fitness = Fitness {
             connectivity: self.calc_connectivity(),
@@ -212,11 +250,10 @@ impl Population {
         }
     }
 
-    pub fn get_fronts(&self) -> Vec<Vec<&Individual>> {
-        // panic!("");
+    pub fn get_fronts(&self) -> Fronts {
         let pop_size = self.individuals.len();
         let mut choosed: Vec<bool> = vec![false; self.individuals.len()];
-        let mut fronts: Vec<Vec<&Individual>> = Vec::new();
+        let mut fronts: Vec<Vec<Individual>> = Vec::new();
         let mut count = 0;
         while count < pop_size {
             let mut front_indices: Vec<usize> = Vec::new();
@@ -245,7 +282,7 @@ impl Population {
                 .map(|index| {
                     count += 1;
                     choosed[index] = true;
-                    &self.individuals[index]
+                    self.individuals[index].clone_with_fitness()
                 })
                 .collect();
             fronts.push(front);
@@ -262,7 +299,7 @@ impl Population {
             }
             println!("");
         }
-        fronts
+        Fronts { layers: fronts }
     }
 }
 
@@ -280,6 +317,21 @@ impl Simulation {
             self.population.add(Individual::new(segment_matrix));
         }
     }
+}
+
+impl Fronts {
+    pub fn get_ranges(&self) -> (Fitness, Fitness) {
+        let mut min = Fitness::new(f64::MAX, f64::MAX, f64::MAX);
+        let mut max = Fitness::new(f64::MIN, f64::MIN, f64::MIN);
+        for layer in self.layers.iter() {
+            for individual in layer.iter() {
+                min.set_min(&individual.get_fitness());
+                min.set_max(&individual.get_fitness());
+            }
+        }
+        (min, max)
+    }
+    pub fn get_normalized_fitness() -> Vec<Vec<Fitness>> {}
 }
 
 #[cfg(test)]

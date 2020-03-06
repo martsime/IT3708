@@ -3,7 +3,7 @@ use lazy_static::*;
 
 #[derive(Envconfig)]
 pub struct Config {
-    #[envconfig(from = "GUI_WIDTH", default = "1600")]
+    #[envconfig(from = "GUI_WIDTH", default = "2000")]
     pub gui_width: i32,
 
     #[envconfig(from = "GUI_HEIGHT", default = "1000")]
@@ -21,19 +21,19 @@ pub struct Config {
     #[envconfig(from = "PLOT_SIZE", default = "500")]
     plot_size: i32,
 
-    #[envconfig(from = "IMAGE_PATH", default = "training/147091/Test image.jpg")]
+    #[envconfig(from = "IMAGE_PATH", default = "training/176035/Test image.jpg")]
     pub image_path: String,
 
-    #[envconfig(from = "MIN_SEG_SIZE", default = "10")]
+    #[envconfig(from = "MIN_SEG_SIZE", default = "100")]
     pub min_seg_size: usize,
 
     #[envconfig(from = "THREADS", default = "12")]
     pub threads: usize,
 
-    #[envconfig(from = "POPULATION_SIZE", default = "20")]
+    #[envconfig(from = "POPULATION_SIZE", default = "36")]
     pub population_size: usize,
 
-    #[envconfig(from = "KMEANS", default = "18")]
+    #[envconfig(from = "KMEANS", default = "36")]
     pub kmeans: usize,
 
     #[envconfig(from = "CROSSOVER_SEG_MAX", default = "10")]

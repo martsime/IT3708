@@ -11,7 +11,7 @@ use glib::Sender;
 use crate::config::CONFIG;
 use crate::gui::Gui;
 use crate::segment::SegmentMatrix;
-use crate::simulation::Simulation;
+use crate::simulation::{Fronts, Simulation};
 
 pub struct App {
     app: gtk::Application,
@@ -20,11 +20,11 @@ pub struct App {
 struct Worker {
     image: image::RgbImage,
     simulation: Simulation,
-    channel: Sender<Vec<RgbImage>>,
+    image_channel: Sender<Fronts>,
 }
 
 impl Worker {
-    pub fn new(channel: Sender<Vec<RgbImage>>) -> Worker {
+    pub fn new(image_channel: Sender<Fronts>) -> Worker {
         let image: image::RgbImage = match image::open(&CONFIG.image_path) {
             Ok(image) => image.into_rgb(),
             Err(_) => panic!("Unable to load image!"),
@@ -32,7 +32,7 @@ impl Worker {
         Worker {
             image: image,
             simulation: Simulation::new(),
-            channel: channel,
+            image_channel: image_channel,
         }
     }
 
@@ -45,17 +45,10 @@ impl Worker {
         self.simulation.add_initial(segment_matrices);
         self.simulation.population.evaluate(&self.image);
         println!("Evaluated!");
-        let images: Vec<RgbImage> = self
-            .simulation
-            .population
-            .individuals
-            .iter()
-            .map(|individual| individual.segment_matrix.into_centroid_image(&self.image))
-            .collect();
-
-        self.simulation.population.get_fronts();
-        println!("Images generated");
-        self.channel.send(images).expect("Failed to send images");
+        let fronts = self.simulation.population.get_fronts();
+        self.image_channel
+            .send(fronts)
+            .expect("Failed to send images");
     }
 }
 
@@ -93,10 +86,15 @@ impl App {
                 worker.run();
             });
 
-            r_image_channel.attach(None, move |images| {
-                for (i, image) in images.into_iter().enumerate() {
-                    gui.update_image(image, i);
+            r_image_channel.attach(None, move |fronts| {
+                let mut i = 0;
+                for layer in fronts.layers.iter() {
+                    for individual in layer.iter() {
+                        gui.update_image(i, &individual.segment_matrix);
+                        i += 1;
+                    }
                 }
+                gui.update_plots(&fronts);
                 glib::Continue(true)
             });
 
