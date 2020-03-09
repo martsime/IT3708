@@ -195,7 +195,23 @@ impl Gui {
 
     pub fn update_image(&self, number: usize, segment_matrix: &SegmentMatrix) {
         let gtk_image = &self.images[number];
-        let image = segment_matrix.into_centroid_image(&self.image);
+        // let image = segment_matrix.into_centroid_image(&self.image);
+
+        let image = segment_matrix.into_border_image();
+        let image_path = format!("{}/image-{}.jpg", CONFIG.out_path, number);
+        println!("Image format: {}", image_path);
+        let segments = segment_matrix.get_segments();
+        if segments.len() <= CONFIG.max_segments {
+            image::save_buffer_with_format(
+                image_path,
+                &image,
+                image.width(),
+                image.height(),
+                image::ColorType::Rgb8,
+                image::ImageFormat::Jpeg,
+            )
+            .expect("Unable to save image");
+        }
 
         let (width, height) = image.dimensions();
         let mut flattened = image.into_flat_samples();

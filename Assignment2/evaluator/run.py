@@ -2,8 +2,8 @@ import os
 from fileReader import readImage
 from fileReader import readTextFile
 
-optimalFolder = "Optimal_Segmentation_Files" # you may have to specify the complete path
-studentFolder = "Student_Segmentation_Files" # you may have to specify the complete path
+optimalFolder = "gt_out" # you may have to specify the complete path
+studentFolder = "my_out" # you may have to specify the complete path
 colorValueSlackRange = 40
 blackValueThreshold = 100 # colors below 100 is black
 pixelRangeCheck = 4
@@ -12,12 +12,12 @@ checkEightSurroundingPixels = True
 def readFilesFromFolder(directory):
 	allFiles = []
 	for filename in os.listdir(directory):
-	    if filename.endswith(".jpg") or filename.endswith(".png"): 
-	    	filename = os.path.join(directory, filename)
-	    	allFiles.append(readImage(filename))
-	    elif filename.endswith(".txt"):
-	    	filename = os.path.join(directory, filename)
-	    	allFiles.append(readTextFile(filename))
+            if filename.endswith(".jpg") or filename.endswith(".png"):
+                filename = os.path.join(directory, filename)
+                allFiles.append(readImage(filename))
+            elif filename.endswith(".txt"):
+                filename = os.path.join(directory, filename)
+                allFiles.append(readTextFile(filename))
 	return allFiles
 
 
@@ -54,7 +54,7 @@ def comparePics(studentPic, optimalSegmentPic):
 									correctFound = True
 									counter +=1
 									break
-	
+
 	return counter/max(numberOfBlackPixels,1)
 
 
@@ -74,6 +74,6 @@ def main():
 		print("Score: %.2f" % a + "%")
 	a = totalScore/len(studentFiles)*100
 	print("Total Average Score: %.2f" % a + "%")
-	
+
 main()
 

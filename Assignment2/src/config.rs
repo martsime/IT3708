@@ -3,7 +3,7 @@ use lazy_static::*;
 
 #[derive(Envconfig)]
 pub struct Config {
-    #[envconfig(from = "GUI_WIDTH", default = "2000")]
+    #[envconfig(from = "GUI_WIDTH", default = "1600")]
     pub gui_width: i32,
 
     #[envconfig(from = "GUI_HEIGHT", default = "1000")]
@@ -19,25 +19,37 @@ pub struct Config {
     pub image_size: i32,
 
     #[envconfig(from = "PLOT_SIZE", default = "500")]
-    plot_size: i32,
+    pub plot_size: i32,
 
-    #[envconfig(from = "IMAGE_PATH", default = "training/176035/Test image.jpg")]
+    #[envconfig(from = "IMAGE_PATH", default = "training/147091/Test image.jpg")]
     pub image_path: String,
 
-    #[envconfig(from = "MIN_SEG_SIZE", default = "100")]
+    #[envconfig(from = "OUT_PATH", default = "evaluator/my_out")]
+    pub out_path: String,
+
+    #[envconfig(from = "MIN_SEG_SIZE", default = "10")]
     pub min_seg_size: usize,
+
+    #[envconfig(from = "MAX_SEGMENTS", default = "1000")]
+    pub max_segments: usize,
 
     #[envconfig(from = "THREADS", default = "12")]
     pub threads: usize,
 
-    #[envconfig(from = "POPULATION_SIZE", default = "36")]
+    #[envconfig(from = "POPULATION_SIZE", default = "20")]
     pub population_size: usize,
 
-    #[envconfig(from = "KMEANS", default = "36")]
+    #[envconfig(from = "KMEANS", default = "10")]
     pub kmeans: usize,
 
     #[envconfig(from = "CROSSOVER_SEG_MAX", default = "10")]
     pub crossover_seg_max: usize,
+
+    #[envconfig(from = "CROSSOVER_RATE", default = "1.0")]
+    pub crossover_rate: f64,
+
+    #[envconfig(from = "MUTATION_RATE", default = "0.5")]
+    pub mutation_rate: f64,
 }
 
 impl Config {

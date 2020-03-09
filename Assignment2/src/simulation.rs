@@ -34,6 +34,7 @@ pub struct Population {
 pub struct Simulation {
     iteration: usize,
     pub population: Population,
+    fronts: Option<Fronts>,
 }
 
 pub struct Fronts {
@@ -308,6 +309,7 @@ impl Simulation {
         Simulation {
             population: Population::new(),
             iteration: 0,
+            fronts: None,
         }
     }
     pub fn add_initial(&mut self, segment_matrices: Vec<SegmentMatrix>) {
@@ -316,6 +318,58 @@ impl Simulation {
             let segment_matrix = segment_matrices[i % num_segments].clone();
             self.population.add(Individual::new(segment_matrix));
         }
+    }
+
+    pub fn evaluate(&mut self, image: &RgbImage) {
+        self.population.evaluate(image);
+    }
+
+    pub fn evolve(&mut self, image: &RgbImage) {
+        let fronts = &self.population.get_fronts();
+        let first_layer = &fronts.layers[0];
+        let first_size = first_layer.len();
+        let mut new_individuals: Vec<Individual> = Vec::with_capacity(CONFIG.population_size * 2);
+        let mut rng = rand::thread_rng();
+        while new_individuals.len() < CONFIG.population_size {
+            let p1 = &first_layer[rng.gen_range(0, first_size)];
+            let p2 = &first_layer[rng.gen_range(0, first_size)];
+            let cross: f64 = rng.gen();
+            let mutate: f64 = rng.gen();
+            let (mut c1, mut c2) = if cross < CONFIG.crossover_rate {
+                (p1.crossover(p2), p2.crossover(p1))
+            } else {
+                (p1.clone_with_fitness(), p2.clone_with_fitness())
+            };
+            if mutate < CONFIG.mutation_rate {
+                c1.mutate();
+                c2.mutate();
+            }
+            new_individuals.push(c1);
+            new_individuals.push(c2);
+        }
+        for ind in new_individuals.iter_mut() {
+            ind.evaluate(image);
+        }
+        for old in self.population.individuals.iter() {
+            new_individuals.push(old.clone_with_fitness());
+        }
+
+        let mut new_pop = Population {
+            individuals: new_individuals,
+        };
+
+        let new_fronts = new_pop.get_fronts();
+        let mut new_ind: Vec<Individual> = Vec::new();
+        for layer in new_fronts.layers {
+            for ind in layer {
+                if new_ind.len() < CONFIG.population_size {
+                    new_ind.push(ind);
+                } else {
+                    break;
+                }
+            }
+        }
+        self.population.individuals = new_ind;
     }
 }
 
@@ -331,7 +385,11 @@ impl Fronts {
         }
         (min, max)
     }
-    pub fn get_normalized_fitness() -> Vec<Vec<Fitness>> {}
+
+    pub fn get_best(&self) -> &Vec<Individual> {
+        &self.layers[0]
+    }
+    // pub fn get_normalized_fitness() -> Vec<Vec<Fitness>> {}
 }
 
 #[cfg(test)]

@@ -291,4 +291,45 @@ impl SegmentMatrix {
         }
         new_image
     }
+
+    pub fn into_border_image(&self) -> RgbImage {
+        let segments = self.get_segments();
+        let matrix = &self.matrix;
+
+        let black = Rgb([0, 0, 0]);
+        let white = Rgb([255, 255, 255]);
+
+        let mut new_image = RgbImage::new(matrix.width as u32, matrix.height as u32);
+        for y in 0..matrix.height {
+            for x in 0..matrix.width {
+                let value = matrix.get_pos(&Pos::new_usize(y, x));
+                if x > 0 && y > 0 {
+                    let left = matrix.get_pos(&Pos::new_usize(y, x - 1));
+                    let right = matrix.get_pos(&Pos::new_usize(y - 1, x));
+                    if value != left || value != right {
+                        new_image.put_pixel(x as u32, y as u32, black);
+                    } else {
+                        new_image.put_pixel(x as u32, y as u32, white);
+                    }
+                }
+            }
+        }
+
+        for y in 0..matrix.height {
+            // Left border
+            new_image.put_pixel(0 as u32, y as u32, black);
+
+            // Right border
+            new_image.put_pixel((matrix.width - 1) as u32, y as u32, black);
+        }
+
+        for x in 0..matrix.width {
+            // Left border
+            new_image.put_pixel(x as u32, 0 as u32, black);
+
+            // Right border
+            new_image.put_pixel(x as u32, (matrix.height - 1) as u32, black);
+        }
+        new_image
+    }
 }

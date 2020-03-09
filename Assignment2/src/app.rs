@@ -43,12 +43,19 @@ impl Worker {
             .collect();
 
         self.simulation.add_initial(segment_matrices);
-        self.simulation.population.evaluate(&self.image);
+        self.simulation.evaluate(&self.image);
         println!("Evaluated!");
         let fronts = self.simulation.population.get_fronts();
         self.image_channel
             .send(fronts)
             .expect("Failed to send images");
+        for i in 0..10 {
+            self.simulation.evolve(&self.image);
+            let fronts = self.simulation.population.get_fronts();
+            self.image_channel
+                .send(fronts)
+                .expect("Failed to send images");
+        }
     }
 }
 
