@@ -9,7 +9,7 @@ use crate::matrix::Pos;
 use crate::segment::SegmentMatrix;
 use crate::utils;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Fitness {
     pub edge_value: f64,
     pub connectivity: f64,
@@ -51,25 +51,25 @@ impl Fitness {
     }
 
     pub fn set_min(&mut self, other: &Fitness) {
-        if self.edge_value > other.edge_value {
+        if self.edge_value >= other.edge_value {
             self.edge_value = other.edge_value;
         }
-        if self.connectivity > other.connectivity {
+        if self.connectivity >= other.connectivity {
             self.connectivity = other.connectivity
         }
-        if self.overall_deviation > other.overall_deviation {
+        if self.overall_deviation >= other.overall_deviation {
             self.overall_deviation = other.overall_deviation
         }
     }
 
     pub fn set_max(&mut self, other: &Fitness) {
-        if self.edge_value < other.edge_value {
+        if self.edge_value <= other.edge_value {
             self.edge_value = other.edge_value;
         }
-        if self.connectivity < other.connectivity {
+        if self.connectivity <= other.connectivity {
             self.connectivity = other.connectivity
         }
-        if self.overall_deviation < other.overall_deviation {
+        if self.overall_deviation <= other.overall_deviation {
             self.overall_deviation = other.overall_deviation
         }
     }
@@ -380,7 +380,7 @@ impl Fronts {
         for layer in self.layers.iter() {
             for individual in layer.iter() {
                 min.set_min(&individual.get_fitness());
-                min.set_max(&individual.get_fitness());
+                max.set_max(&individual.get_fitness());
             }
         }
         (min, max)
@@ -389,7 +389,27 @@ impl Fronts {
     pub fn get_best(&self) -> &Vec<Individual> {
         &self.layers[0]
     }
-    // pub fn get_normalized_fitness() -> Vec<Vec<Fitness>> {}
+    pub fn get_normalized_fitness(&self) -> Vec<Vec<(usize, Fitness)>> {
+        let (min_f, max_f) = self.get_ranges();
+        let mut fitness_fronts = Vec::new();
+        let mut ind_num: usize = 0;
+        for layer in self.layers.iter() {
+            let mut layer_vec = Vec::new();
+            for individual in layer.iter() {
+                let f = individual.get_fitness();
+                let ev = (f.edge_value - min_f.edge_value) / (max_f.edge_value - min_f.edge_value);
+                let con = (f.connectivity - min_f.connectivity)
+                    / (max_f.connectivity - min_f.connectivity);
+                let od = (f.overall_deviation - min_f.overall_deviation)
+                    / (max_f.overall_deviation - min_f.overall_deviation);
+                let new_fit = Fitness::new(ev, con, od);
+                layer_vec.push((ind_num, new_fit));
+                ind_num += 1;
+            }
+            fitness_fronts.push(layer_vec);
+        }
+        fitness_fronts
+    }
 }
 
 #[cfg(test)]

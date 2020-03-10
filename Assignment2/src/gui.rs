@@ -27,13 +27,19 @@ mod plot {
         gtk::Image::new_from_surface(Some(&surface))
     }
 
-    pub fn update_image(image: &gtk::Image) {
+    pub fn update_image(
+        image: &gtk::Image,
+        x_axis: &str,
+        y_axis: &str,
+        points: Vec<Vec<(usize, (f64, f64))>>,
+    ) {
         let (width, height) = CONFIG.plot_size();
         let surface =
             ImageSurface::create(Format::Rgb24, width, height).expect("Unable to create surface");
         let cr = Context::new(&surface);
         draw_background(&cr);
-        draw_labels(&cr);
+        draw_labels(&cr, x_axis, y_axis);
+        draw_points(&cr, points);
         image.set_from_surface(Some(&surface));
     }
 
@@ -44,34 +50,62 @@ mod plot {
         cr.fill();
     }
 
-    fn draw_labels(cr: &Context) {
+    fn draw_labels(cr: &Context, x_axis: &str, y_axis: &str) {
         let (width, height) = CONFIG.plot_size();
         cr.select_font_face("Cairo", FontSlant::Normal, FontWeight::Normal);
         cr.set_font_size(16.0);
         let label_padding: f64 = 20.0;
         // y-axis label
-        let text = "Hello world";
-        let te = cr.text_extents(&text);
+        let te = cr.text_extents(&y_axis);
         cr.set_source_rgb(0.0, 0.0, 0.0);
         cr.move_to(
             label_padding + te.height / 2.0,
             height as f64 / 2.0 + te.width / 2.0,
         );
         cr.rotate(-PI / 2.0);
-        cr.show_text(text);
+        cr.show_text(y_axis);
         cr.rotate(PI / 2.0);
         cr.stroke();
 
         // x-axis label
-        let text = "Hello world";
-        let te = cr.text_extents(&text);
+        let te = cr.text_extents(x_axis);
         cr.set_source_rgb(0.0, 0.0, 0.0);
         cr.move_to(
             width as f64 / 2.0 - te.width / 2.0,
             height as f64 - label_padding / 2.0 - te.height / 2.0,
         );
-        cr.show_text(text);
+        cr.show_text(x_axis);
         cr.stroke();
+    }
+
+    fn draw_points(cr: &Context, points: Vec<Vec<(usize, (f64, f64))>>) {
+        // Background
+        let (width, height) = CONFIG.plot_size();
+        let pad = 30;
+        let min = (20 + pad, pad);
+        let max = (width - pad, height - 20 - pad);
+        let (w, h) = ((max.0 - min.0) as f64, (max.1 - min.1) as f64);
+        let or = (min.0 as f64, min.1 as f64);
+        cr.set_source_rgb(0.9, 0.9, 0.9);
+        cr.rectangle(
+            (min.0 - pad / 2) as f64,
+            (min.1 - pad / 2) as f64,
+            (max.0 - min.0 + pad) as f64,
+            (max.1 - min.1 + pad) as f64,
+        );
+        cr.fill();
+        // cr.set_line_width(5.0);
+        cr.set_source_rgb(0.0, 0.0, 0.0);
+        for layer in points.iter() {
+            let (_, first) = &layer[0];
+            cr.move_to(first.0 * w + or.0, (1.0 - first.1) * h + or.1);
+            for (i, point) in layer.iter() {
+                let (px, py) = (point.0 * w + or.0, (1.0 - point.1) * h + or.1);
+                cr.line_to(px, py);
+                cr.arc(px, py, 5.0, 0.0, 2.0 * PI);
+            }
+            cr.stroke();
+        }
     }
 }
 
@@ -240,8 +274,50 @@ impl Gui {
 
     pub fn update_plots(&self, fronts: &Fronts) {
         println!("Updating plots!");
-        for image in self.plots.iter() {
-            plot::update_image(image);
+        let mut fitness = fronts.get_normalized_fitness();
+
+        for front in fitness.iter_mut() {
+            front.sort_by(|(_, fa), (_, fb)| fa.edge_value.partial_cmp(&fb.edge_value).unwrap())
         }
+        let ev_con: Vec<Vec<(usize, (f64, f64))>> = fitness
+            .iter()
+            .map(|front| {
+                front
+                    .iter()
+                    .map(|(i, fit)| ((*i), (fit.edge_value, fit.connectivity)))
+                    .collect()
+            })
+            .collect();
+        plot::update_image(&self.plots[0], "Edge value", "Connectivity", ev_con);
+        for front in fitness.iter_mut() {
+            front.sort_by(|(_, fa), (_, fb)| fa.connectivity.partial_cmp(&fb.connectivity).unwrap())
+        }
+        let con_od: Vec<Vec<(usize, (f64, f64))>> = fitness
+            .iter()
+            .map(|front| {
+                front
+                    .iter()
+                    .map(|(i, fit)| ((*i), (fit.connectivity, fit.overall_deviation)))
+                    .collect()
+            })
+            .collect();
+        plot::update_image(&self.plots[1], "Connectivity", "Overall deviation", con_od);
+        for front in fitness.iter_mut() {
+            front.sort_by(|(_, fa), (_, fb)| {
+                fa.overall_deviation
+                    .partial_cmp(&fb.overall_deviation)
+                    .unwrap()
+            })
+        }
+        let od_ev: Vec<Vec<(usize, (f64, f64))>> = fitness
+            .iter()
+            .map(|front| {
+                front
+                    .iter()
+                    .map(|(i, fit)| ((*i), (fit.overall_deviation, fit.edge_value)))
+                    .collect()
+            })
+            .collect();
+        plot::update_image(&self.plots[2], "Overall deviation", "Edge value", od_ev);
     }
 }
