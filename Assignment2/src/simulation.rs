@@ -278,7 +278,7 @@ impl Population {
                     front_indices.push(i);
                 }
             }
-            let front = front_indices
+            let mut front: Vec<Individual> = front_indices
                 .into_iter()
                 .map(|index| {
                     count += 1;
@@ -286,6 +286,12 @@ impl Population {
                     self.individuals[index].clone_with_fitness()
                 })
                 .collect();
+            front.sort_by(|a, b| {
+                a.get_fitness()
+                    .connectivity
+                    .partial_cmp(&b.get_fitness().connectivity)
+                    .unwrap()
+            });
             fronts.push(front);
         }
 

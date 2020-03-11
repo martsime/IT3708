@@ -21,25 +21,25 @@ pub struct Config {
     #[envconfig(from = "PLOT_SIZE", default = "500")]
     pub plot_size: i32,
 
-    #[envconfig(from = "IMAGE_PATH", default = "training/147091/Test image.jpg")]
+    #[envconfig(from = "IMAGE_PATH", default = "training/216066/Test image.jpg")]
     pub image_path: String,
 
     #[envconfig(from = "OUT_PATH", default = "evaluator/my_out")]
     pub out_path: String,
 
-    #[envconfig(from = "MIN_SEG_SIZE", default = "50")]
+    #[envconfig(from = "MIN_SEG_SIZE", default = "100")]
     pub min_seg_size: usize,
 
-    #[envconfig(from = "MAX_SEGMENTS", default = "1000")]
+    #[envconfig(from = "MAX_SEGMENTS", default = "100")]
     pub max_segments: usize,
 
     #[envconfig(from = "THREADS", default = "12")]
     pub threads: usize,
 
-    #[envconfig(from = "POPULATION_SIZE", default = "30")]
+    #[envconfig(from = "POPULATION_SIZE", default = "24")]
     pub population_size: usize,
 
-    #[envconfig(from = "KMEANS", default = "30")]
+    #[envconfig(from = "KMEANS", default = "12")]
     pub kmeans: usize,
 
     #[envconfig(from = "CROSSOVER_SEG_MAX", default = "10")]

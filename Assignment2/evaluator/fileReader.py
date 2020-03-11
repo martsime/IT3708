@@ -1,4 +1,4 @@
-# you need to download PIL: 
+# you need to download PIL:
 	#for python 3: python3 -m pip install Pillow
 	#for python 2: sudo pip install Pillow
 #file reader: reads file name and returns 2d array
@@ -12,7 +12,7 @@ def readImage(filename):
 	data = fixData(list(im.getdata()))
 	#get pixel (x,y) by pixel_values[width*y+x]
 	try:
-		return np.array(data).reshape((width,height))
+		return np.array(data).reshape((height, width))
 	except:
 		raise Exception("Mo")
 
@@ -30,7 +30,7 @@ def readTextFile(filename):
 	im = np.array([])
 	file = open(filename, "r")
 	for line in file:
-		imLine = line.strip().split(",")		
+		imLine = line.strip().split(",")
 		width = len(imLine)
 		#print(width)
 		for i in range(len(imLine)):
@@ -43,6 +43,3 @@ def readTextFile(filename):
 	except:
 		raise Exception('\n\nSome error with the shape of the .txt image file \n\n')
 	return im.reshape((width,height))
-
-	
-	
