@@ -25,7 +25,7 @@ struct Worker {
 
 impl Worker {
     pub fn new(image_channel: Sender<Fronts>) -> Worker {
-        let image: image::RgbImage = match image::open(&CONFIG.image_path) {
+        let image: image::RgbImage = match image::open(&CONFIG.image_path()) {
             Ok(image) => image.into_rgb(),
             Err(_) => panic!("Unable to load image!"),
         };
@@ -45,16 +45,54 @@ impl Worker {
         self.simulation.add_initial(segment_matrices);
         self.simulation.evaluate(&self.image);
         println!("Evaluated!");
-        let fronts = self.simulation.population.get_fronts();
+        let mut fronts = self.simulation.population.get_fronts();
+        self.simulation.population.print_fronts(&fronts);
         self.image_channel
             .send(fronts)
             .expect("Failed to send images");
-        for i in 0..10 {
+        for i in 0..CONFIG.generations {
             self.simulation.evolve(&self.image);
-            let fronts = self.simulation.population.get_fronts();
+            fronts = self.simulation.population.get_fronts();
+            self.simulation.population.print_fronts(&fronts);
             self.image_channel
                 .send(fronts)
                 .expect("Failed to send images");
+        }
+
+        let fronts = self.simulation.population.get_fronts();
+
+        for individual in fronts.layers[0].iter() {
+            let segment_matrix = &individual.segment_matrix;
+            let segments = segment_matrix.get_segments();
+            let image = segment_matrix.into_green_border_image(&self.image);
+            let number = segments.len();
+            let image_path = format!("{}/green-image-{}.jpg", CONFIG.out_path(), number);
+            println!("Image format: {}", image_path);
+            if number <= CONFIG.max_segments {
+                image::save_buffer_with_format(
+                    image_path,
+                    &image,
+                    image.width(),
+                    image.height(),
+                    image::ColorType::Rgb8,
+                    image::ImageFormat::Jpeg,
+                )
+                .expect("Unable to save image");
+            }
+            let image = segment_matrix.into_border_image();
+            let image_path = format!("{}/border-image-{}.jpg", CONFIG.out_path(), number);
+            println!("Image format: {}", image_path);
+            if number <= CONFIG.max_segments {
+                image::save_buffer_with_format(
+                    image_path,
+                    &image,
+                    image.width(),
+                    image.height(),
+                    image::ColorType::Rgb8,
+                    image::ImageFormat::Jpeg,
+                )
+                .expect("Unable to save image");
+            }
         }
     }
 }

@@ -4,6 +4,7 @@ extern crate envconfig_derive;
 extern crate cairo;
 extern crate gio;
 extern crate gtk;
+extern crate rayon;
 
 mod app;
 mod config;

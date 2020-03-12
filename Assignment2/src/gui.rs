@@ -18,12 +18,7 @@ mod plot {
             ImageSurface::create(Format::Rgb24, width, height).expect("Unable to create surface");
         let cr = Context::new(&surface);
         draw_background(&cr);
-        // draw_labels(&cr);
 
-        cr.set_line_width(1.0);
-        cr.set_source_rgb(1.0, 0.0, 0.0);
-        cr.rectangle(100.0, 100.0, 100.0, 100.0);
-        cr.stroke();
         gtk::Image::new_from_surface(Some(&surface))
     }
 
@@ -120,7 +115,7 @@ pub struct Gui {
 
 impl Gui {
     pub fn new() -> Gui {
-        let image: image::RgbImage = match image::open(&CONFIG.image_path) {
+        let image: image::RgbImage = match image::open(&CONFIG.image_path()) {
             Ok(image) => image.into_rgb(),
             Err(_) => panic!("Unable to load image!"),
         };
@@ -145,7 +140,7 @@ impl Gui {
 
     fn generate_original_image() -> gtk::Image {
         let pixbuf = gdk_pixbuf::Pixbuf::new_from_file_at_size(
-            &CONFIG.image_path,
+            &CONFIG.image_path(),
             CONFIG.original_image_size,
             CONFIG.original_image_size,
         )
@@ -155,7 +150,7 @@ impl Gui {
 
     fn generate_images() -> Vec<gtk::Image> {
         let pixbuf = &gdk_pixbuf::Pixbuf::new_from_file_at_size(
-            &CONFIG.image_path,
+            &CONFIG.image_path(),
             CONFIG.image_size,
             CONFIG.image_size,
         )
@@ -179,7 +174,7 @@ impl Gui {
     fn generate_labels() -> Vec<gtk::Label> {
         let mut labels: Vec<gtk::Label> = Vec::new();
         for i in 0..CONFIG.population_size {
-            let text = format!("Label: {}", i);
+            let text = format!("Image {}", i);
             let label = gtk::Label::new(Some(&text));
             labels.push(label);
         }
@@ -232,20 +227,6 @@ impl Gui {
         // let image = segment_matrix.into_centroid_image(&self.image);
 
         let image = segment_matrix.into_border_image();
-        let image_path = format!("{}/image-{}.jpg", CONFIG.out_path, number);
-        println!("Image format: {}", image_path);
-        let segments = segment_matrix.get_segments();
-        if segments.len() <= CONFIG.max_segments {
-            image::save_buffer_with_format(
-                image_path,
-                &image,
-                image.width(),
-                image.height(),
-                image::ColorType::Rgb8,
-                image::ImageFormat::Jpeg,
-            )
-            .expect("Unable to save image");
-        }
 
         let (width, height) = image.dimensions();
         let mut flattened = image.into_flat_samples();
@@ -273,7 +254,6 @@ impl Gui {
     }
 
     pub fn update_plots(&self, fronts: &Fronts) {
-        println!("Updating plots!");
         let mut fitness = fronts.get_normalized_fitness();
 
         for front in fitness.iter_mut() {

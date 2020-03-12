@@ -2,7 +2,9 @@ use std::collections::HashSet;
 use std::f64;
 
 use image::{Rgb, RgbImage};
+use rand::seq::SliceRandom;
 use rand::Rng;
+use rayon::prelude::*;
 
 use crate::config::CONFIG;
 use crate::matrix::Pos;
@@ -89,6 +91,13 @@ impl Fitness {
 
     fn get_values(&self) -> [f64; 3] {
         [self.edge_value, self.connectivity, self.overall_deviation]
+    }
+
+    fn get_weighted(&self) -> f64 {
+        (self.edge_value * CONFIG.ev_weight
+            + self.connectivity * CONFIG.con_weight
+            + self.overall_deviation * CONFIG.od_weight)
+            / CONFIG.total_weight()
     }
 }
 
@@ -295,18 +304,24 @@ impl Population {
             fronts.push(front);
         }
 
-        for (i, f) in fronts.iter().enumerate() {
+        Fronts { layers: fronts }
+    }
+
+    pub fn print_fronts(&self, fronts: &Fronts) {
+        for (i, f) in fronts.layers.iter().enumerate() {
             println!("Front: {}", i);
             for ind in f.iter() {
                 let fitness = ind.get_fitness();
                 println!(
-                    "Fitness: {:.2}, {:.2}, {:.2}",
-                    fitness.edge_value, fitness.connectivity, fitness.overall_deviation
+                    "Fitness: {:.2}, {:.2}, {:.2}, weighted: {:.2}",
+                    fitness.edge_value,
+                    fitness.connectivity,
+                    fitness.overall_deviation,
+                    fitness.get_weighted()
                 );
             }
             println!("");
         }
-        Fronts { layers: fronts }
     }
 }
 
@@ -330,52 +345,104 @@ impl Simulation {
         self.population.evaluate(image);
     }
 
+    pub fn tournament(&self) -> usize {
+        let mut numbers: HashSet<usize> = HashSet::new();
+        let mut rng = rand::thread_rng();
+        while numbers.len() < CONFIG.tournament_k {
+            numbers.insert(rng.gen_range(0, self.population.individuals.len()));
+        }
+
+        let mut best: Option<usize> = None;
+        let mut best_score = f64::MAX;
+        for num in numbers.iter() {
+            let ind = &self.population.individuals[*num];
+            if ind.get_fitness().get_weighted() < best_score {
+                best = Some(*num);
+                best_score = ind.get_fitness().get_weighted();
+            }
+        }
+
+        best.unwrap()
+    }
+
     pub fn evolve(&mut self, image: &RgbImage) {
         let fronts = &self.population.get_fronts();
         let first_layer = &fronts.layers[0];
         let first_size = first_layer.len();
         let mut new_individuals: Vec<Individual> = Vec::with_capacity(CONFIG.population_size * 2);
         let mut rng = rand::thread_rng();
-        while new_individuals.len() < CONFIG.population_size {
-            let p1 = &first_layer[rng.gen_range(0, first_size)];
-            let p2 = &first_layer[rng.gen_range(0, first_size)];
-            let cross: f64 = rng.gen();
-            let mutate: f64 = rng.gen();
-            let (mut c1, mut c2) = if cross < CONFIG.crossover_rate {
-                (p1.crossover(p2), p2.crossover(p1))
-            } else {
-                (p1.clone_with_fitness(), p2.clone_with_fitness())
-            };
-            if mutate < CONFIG.mutation_rate {
-                c1.mutate();
-                c2.mutate();
-            }
-            new_individuals.push(c1);
-            new_individuals.push(c2);
-        }
-        for ind in new_individuals.iter_mut() {
-            ind.evaluate(image);
-        }
-        for old in self.population.individuals.iter() {
-            new_individuals.push(old.clone_with_fitness());
-        }
-
-        let mut new_pop = Population {
-            individuals: new_individuals,
-        };
-
-        let new_fronts = new_pop.get_fronts();
-        let mut new_ind: Vec<Individual> = Vec::new();
-        for layer in new_fronts.layers {
-            for ind in layer {
-                if new_ind.len() < CONFIG.population_size {
-                    new_ind.push(ind);
+        if CONFIG.weighted {
+            while new_individuals.len() < CONFIG.population_size {
+                let p1 = &self.population.individuals[self.tournament()];
+                let p2 = &self.population.individuals[self.tournament()];
+                let cross: f64 = rng.gen();
+                let mutate: f64 = rng.gen();
+                let (mut c1, mut c2) = if cross < CONFIG.crossover_rate {
+                    (p1.crossover(p2), p2.crossover(p1))
                 } else {
-                    break;
+                    (p1.clone_with_fitness(), p2.clone_with_fitness())
+                };
+                if mutate < CONFIG.mutation_rate {
+                    let num_mutations = rng.gen_range(0, CONFIG.mutations_max);
+                    for _ in 0..num_mutations {
+                        c1.mutate();
+                        c2.mutate();
+                    }
+                }
+                new_individuals.push(c1);
+                new_individuals.push(c2);
+            }
+            new_individuals.par_iter_mut().for_each(|ind| {
+                ind.evaluate(image);
+            });
+            self.population.individuals = new_individuals;
+        } else {
+            while new_individuals.len() < CONFIG.population_size {
+                let p1 = &first_layer[rng.gen_range(0, first_size)];
+                let p2 = &first_layer[rng.gen_range(0, first_size)];
+                let cross: f64 = rng.gen();
+                let mutate: f64 = rng.gen();
+                let (mut c1, mut c2) = if cross < CONFIG.crossover_rate {
+                    (p1.crossover(p2), p2.crossover(p1))
+                } else {
+                    (p1.clone_with_fitness(), p2.clone_with_fitness())
+                };
+                if mutate < CONFIG.mutation_rate {
+                    let num_mutations = rng.gen_range(0, CONFIG.mutations_max);
+                    for _ in 0..num_mutations {
+                        c1.mutate();
+                        c2.mutate();
+                    }
+                }
+                new_individuals.push(c1);
+                new_individuals.push(c2);
+            }
+            new_individuals.par_iter_mut().for_each(|ind| {
+                ind.evaluate(image);
+            });
+            for old in self.population.individuals.iter() {
+                new_individuals.push(old.clone_with_fitness());
+            }
+
+            let mut new_pop = Population {
+                individuals: new_individuals,
+            };
+
+            let new_fronts = new_pop.get_fronts();
+            let mut new_ind = Vec::new();
+            for mut layer in new_fronts.layers {
+                let mut rng = rand::thread_rng();
+                layer.shuffle(&mut rng);
+                for ind in layer {
+                    if new_ind.len() < CONFIG.population_size {
+                        new_ind.push(ind);
+                    } else {
+                        break;
+                    }
                 }
             }
+            self.population.individuals = new_ind;
         }
-        self.population.individuals = new_ind;
     }
 }
 
