@@ -1,3 +1,5 @@
+use std::cmp::max;
+
 use crate::parser::parse_file;
 
 #[derive(Debug)]
@@ -81,6 +83,31 @@ impl Problem {
     }
 
     pub fn calc_fitness(&self, sequence: &Vec<usize>) -> usize {
-        0
+        let num_machines = self.number_of_machines();
+        let num_jobs = self.number_of_jobs();
+        let mut end_time: usize = 0;
+        let mut machine_times = vec![0; num_machines];
+        let mut job_times = vec![0; num_jobs];
+        let mut job_operation_numbers = vec![1; num_jobs];
+        for job_number in sequence {
+            let job = self.job(*job_number);
+            let operation_number = job_operation_numbers[job.number - 1];
+            let operation = &job.operations[operation_number - 1];
+            // Update next operation for job
+            job_operation_numbers[job.number - 1] = operation_number + 1;
+            let machine = operation.machine;
+
+            // Start time must be after time and when job and machine is ready
+            let start_time = max(machine_times[machine], job_times[job.number - 1]);
+            // Update when machine and job is ready for a new operation
+            machine_times[machine] = start_time + operation.time;
+            job_times[job.number - 1] = start_time + operation.time;
+            // Update the latest end time
+            end_time = max(
+                max(machine_times[machine], job_times[job.number - 1]),
+                end_time,
+            );
+        }
+        end_time
     }
 }

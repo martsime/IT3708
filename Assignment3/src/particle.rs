@@ -1,10 +1,9 @@
-use std::cmp::{max, Ordering};
-
 use rand::Rng;
 use rayon::prelude::*;
+use std::cmp::Ordering;
 
 use crate::config::CONFIG;
-use crate::problem::{Job, Problem};
+use crate::problem::Problem;
 use crate::utils;
 
 #[derive(Debug, Clone)]
@@ -179,34 +178,10 @@ impl Swarm {
     }
 
     pub fn evaluate(&mut self, problem: &Problem) {
-        let num_machines = problem.number_of_machines();
-        let num_jobs = problem.number_of_jobs();
         self.particles.par_iter_mut().for_each(|particle| {
-            let mut end_time: usize = 0;
-            let mut machine_times = vec![0; num_machines];
-            let mut job_times = vec![0; num_jobs];
-            let mut job_operation_numbers = vec![1; num_jobs];
             let sequence = particle.get_sequence();
-            for job_number in sequence {
-                let job = problem.job(*job_number);
-                let operation_number = job_operation_numbers[job.number - 1];
-                let operation = &job.operations[operation_number - 1];
-                // Update next operation for job
-                job_operation_numbers[job.number - 1] = operation_number + 1;
-                let machine = operation.machine;
-
-                // Start time must be after time and when job and machine is ready
-                let start_time = max(machine_times[machine], job_times[job.number - 1]);
-                // Update when machine and job is ready for a new operation
-                machine_times[machine] = start_time + operation.time;
-                job_times[job.number - 1] = start_time + operation.time;
-                // Update the latest end time
-                end_time = max(
-                    max(machine_times[machine], job_times[job.number - 1]),
-                    end_time,
-                );
-            }
-            particle.fitness = Some(end_time);
+            let fitness = problem.calc_fitness(&sequence);
+            particle.fitness = Some(fitness);
         });
     }
 
