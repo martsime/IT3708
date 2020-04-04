@@ -2,11 +2,8 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 
-use crate::config::CONFIG;
-
-pub fn parse_problem() -> Vec<Vec<usize>> {
-    let path_str: String = CONFIG.problem_path();
-    let path = Path::new(&path_str);
+pub fn parse_file(path_str: &str) -> Vec<Vec<usize>> {
+    let path = Path::new(path_str);
     let file = match File::open(Path::new(&path)) {
         Ok(file) => file,
         Err(err) => {
