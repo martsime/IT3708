@@ -29,9 +29,9 @@ pub fn draw_image(particle: &Particle, problem: &Problem) {
     cr.rectangle(0.0, 0.0, image_width as f64, image_height as f64);
     cr.fill();
 
-    let num_machines: usize = problem.get_number_of_machines();
+    let num_machines: usize = problem.number_of_machines();
 
-    let num_jobs: usize = problem.get_number_of_jobs();
+    let num_jobs: usize = problem.number_of_jobs();
     let colors = generate_colors(num_jobs);
 
     let machine_height = height as f64 / num_machines as f64;
@@ -46,12 +46,12 @@ pub fn draw_image(particle: &Particle, problem: &Problem) {
 
     println!("Fitness: {}, time_x: {:.2}", particle.get_fitness(), time_x);
 
-    let mut time: usize = 0;
     let mut machine_times = vec![0; num_machines];
     let mut job_times = vec![0; num_jobs];
     let mut job_operation_numbers = vec![1; num_jobs];
     let sequence = particle.get_sequence();
-    for job in sequence {
+    for job_number in sequence {
+        let job = problem.job(*job_number);
         let operation_number = job_operation_numbers[job.number - 1];
         let operation = &job.operations[operation_number - 1];
         // Update next operation for job
@@ -60,8 +60,6 @@ pub fn draw_image(particle: &Particle, problem: &Problem) {
 
         // Start time must be after time and when job and machine is ready
         let start_time = max(machine_times[machine], job_times[job.number - 1]);
-        // Update current time
-        time = start_time;
         // Update when machine and job is ready for a new operation
         let end_time = start_time + operation.time;
         machine_times[machine] = end_time;

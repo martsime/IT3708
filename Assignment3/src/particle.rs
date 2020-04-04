@@ -1,5 +1,4 @@
 use std::cmp::{max, Ordering};
-use std::sync::Arc;
 
 use rand::Rng;
 use rayon::prelude::*;
@@ -12,13 +11,13 @@ use crate::utils;
 pub struct ParticleItem {
     position: f64,
     velocity: f64,
-    job: Arc<Job>,
+    job: usize,
 }
 
 #[derive(Debug, Clone)]
 pub struct Particle {
     items: Vec<ParticleItem>,
-    sequence: Option<Vec<Arc<Job>>>,
+    sequence: Option<Vec<usize>>,
     pub number: usize,
     pub fitness: Option<usize>,
     pub local_best: Option<Box<Self>>,
@@ -49,13 +48,13 @@ impl PartialEq for ParticleItem {
 }
 
 impl Particle {
-    pub fn new(jobs: &Vec<Arc<Job>>, number: usize) -> Self {
+    pub fn new(jobs: &Vec<usize>, number: usize) -> Self {
         let items: Vec<ParticleItem> = jobs
             .iter()
             .map(|job| ParticleItem {
                 position: utils::get_new_position(),
                 velocity: utils::get_new_velocity(),
-                job: job.clone(),
+                job: *job,
             })
             .collect();
         Self {
@@ -67,7 +66,7 @@ impl Particle {
         }
     }
 
-    pub fn get_sequence(&self) -> &Vec<Arc<Job>> {
+    pub fn get_sequence(&self) -> &Vec<usize> {
         if let Some(sequence) = self.sequence.as_ref() {
             sequence
         } else {
@@ -78,9 +77,9 @@ impl Particle {
     pub fn generate_sequence(&mut self) {
         let mut cloned_items = self.items.clone();
         cloned_items.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let sequence: Vec<Arc<Job>> = cloned_items
+        let sequence: Vec<usize> = cloned_items
             .iter()
-            .map(|particle_item| particle_item.job.clone())
+            .map(|particle_item| particle_item.job)
             .collect();
         self.sequence = Some(sequence);
     }
@@ -180,15 +179,16 @@ impl Swarm {
     }
 
     pub fn evaluate(&mut self, problem: &Problem) {
-        let num_machines = problem.get_number_of_machines();
-        let num_jobs = problem.get_number_of_jobs();
+        let num_machines = problem.number_of_machines();
+        let num_jobs = problem.number_of_jobs();
         self.particles.par_iter_mut().for_each(|particle| {
             let mut end_time: usize = 0;
             let mut machine_times = vec![0; num_machines];
             let mut job_times = vec![0; num_jobs];
             let mut job_operation_numbers = vec![1; num_jobs];
             let sequence = particle.get_sequence();
-            for job in sequence {
+            for job_number in sequence {
+                let job = problem.job(*job_number);
                 let operation_number = job_operation_numbers[job.number - 1];
                 let operation = &job.operations[operation_number - 1];
                 // Update next operation for job

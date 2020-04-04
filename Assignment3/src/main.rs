@@ -20,9 +20,9 @@ fn main() {
     pso.initialize(&problem);
     pso.print_iteration();
 
-    for i in 1..(CONFIG.iterations + 1) {
+    for i in 1..(CONFIG.swarm_iterations + 1) {
         pso.iterate(&problem);
-        if i % CONFIG.ls_n == 0 && i < CONFIG.iterations {
+        if i % CONFIG.ls_n == 0 && i < CONFIG.swarm_iterations {
             pso.local_search(&problem, CONFIG.ls_steps);
         }
         pso.print_iteration();

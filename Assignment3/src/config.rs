@@ -1,8 +1,31 @@
+use std::str::FromStr;
+
 use envconfig::Envconfig;
 use lazy_static::*;
 
+pub enum Method {
+    ACO,
+    PSO,
+}
+
+pub struct MethodError;
+
+impl FromStr for Method {
+    type Err = MethodError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "aco" => Ok(Self::ACO),
+            "pso" => Ok(Self::PSO),
+            _ => Err(MethodError),
+        }
+    }
+}
+
 #[derive(Envconfig)]
 pub struct Config {
+    #[envconfig(from = "METHOD", default = "aco")]
+    pub method: Method,
+
     #[envconfig(from = "DATA_NUMBER", default = "7")]
     pub data_number: usize,
 
@@ -19,16 +42,16 @@ pub struct Config {
     pub image_path: String,
 
     // Partical Swarm Optimization (PSO) settings
-    #[envconfig(from = "ITERATIONS", default = "0")]
-    pub iterations: usize,
+    #[envconfig(from = "SWARM_ITERATIONS", default = "10000")]
+    pub swarm_iterations: usize,
 
-    #[envconfig(from = "LS_N", default = "1000000")] // Local search every n iterations
+    #[envconfig(from = "LS_N", default = "10000")] // Local search every n iterations
     pub ls_n: usize,
 
-    #[envconfig(from = "LS_STEPS", default = "1000")]
+    #[envconfig(from = "LS_STEPS", default = "1")]
     pub ls_steps: usize,
 
-    #[envconfig(from = "SWARM_SIZE", default = "10")]
+    #[envconfig(from = "SWARM_SIZE", default = "20")]
     pub swarm_size: usize,
 
     #[envconfig(from = "X_MIN", default = "0.0")]
@@ -52,8 +75,12 @@ pub struct Config {
     #[envconfig(from = "W_START", default = "0.9")]
     pub w_start: f64,
 
-    #[envconfig(from = "W_MIN", default = "0.4")]
+    #[envconfig(from = "W_MIN", default = "0.1")]
     pub w_min: f64,
+
+    // Ant Colony Optimization (ACO) settings
+    #[envconfig(from = "COLONY_SIZE", default = "100")]
+    pub colony_size: usize,
 }
 
 impl Config {
@@ -66,7 +93,8 @@ impl Config {
     }
 
     pub fn get_inertia(&self, iteration: usize) -> f64 {
-        self.w_start - (self.w_start - self.w_min) * (iteration as f64 / self.iterations as f64)
+        self.w_start
+            - (self.w_start - self.w_min) * (iteration as f64 / self.swarm_iterations as f64)
     }
 
     pub fn get_image_size(&self) -> (i32, i32) {

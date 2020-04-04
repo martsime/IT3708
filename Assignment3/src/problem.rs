@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::parser::parse_file;
 
 #[derive(Debug)]
@@ -18,7 +16,7 @@ pub struct Job {
 
 #[derive(Debug)]
 pub struct Problem {
-    jobs: Vec<Arc<Job>>,
+    jobs: Vec<Job>,
     machines: usize,
 }
 
@@ -52,7 +50,7 @@ impl Problem {
                 };
                 job.add_operation(operation);
             }
-            jobs.push(Arc::new(job));
+            jobs.push(job);
         }
         Problem {
             jobs,
@@ -60,21 +58,29 @@ impl Problem {
         }
     }
 
-    pub fn get_job_operations(&self) -> Vec<Arc<Job>> {
-        let mut job_operations: Vec<Arc<Job>> = Vec::new();
-        for job in self.jobs.iter() {
+    pub fn get_job_operations(&self) -> Vec<usize> {
+        let mut job_operations: Vec<usize> = Vec::new();
+        for (i, job) in self.jobs.iter().enumerate() {
             for _ in job.operations.iter() {
-                job_operations.push(job.clone());
+                job_operations.push(i);
             }
         }
         job_operations
     }
 
-    pub fn get_number_of_machines(&self) -> usize {
+    pub fn number_of_machines(&self) -> usize {
         self.machines
     }
 
-    pub fn get_number_of_jobs(&self) -> usize {
+    pub fn number_of_jobs(&self) -> usize {
         self.jobs.len()
+    }
+
+    pub fn job(&self, index: usize) -> &Job {
+        &self.jobs[index]
+    }
+
+    pub fn calc_fitness(&self, sequence: &Vec<usize>) -> usize {
+        0
     }
 }
