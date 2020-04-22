@@ -42,7 +42,7 @@ pub struct Config {
     pub image_path: String,
 
     // Partical Swarm Optimization (PSO) settings
-    #[envconfig(from = "SWARM_ITERATIONS", default = "10000")]
+    #[envconfig(from = "SWARM_ITERATIONS", default = "2000")]
     pub swarm_iterations: usize,
 
     #[envconfig(from = "LS_N", default = "10000")] // Local search every n iterations
@@ -51,7 +51,7 @@ pub struct Config {
     #[envconfig(from = "LS_STEPS", default = "1")]
     pub ls_steps: usize,
 
-    #[envconfig(from = "SWARM_SIZE", default = "20")]
+    #[envconfig(from = "SWARM_SIZE", default = "100")]
     pub swarm_size: usize,
 
     #[envconfig(from = "X_MIN", default = "0.0")]
@@ -79,8 +79,20 @@ pub struct Config {
     pub w_min: f64,
 
     // Ant Colony Optimization (ACO) settings
-    #[envconfig(from = "COLONY_SIZE", default = "100")]
+    #[envconfig(from = "COLONY_SIZE", default = "50")]
     pub colony_size: usize,
+
+    #[envconfig(from = "ANT_ITERATIONS", default = "200")]
+    pub ant_iterations: usize,
+
+    #[envconfig(from = "PHEROMONE_INIT", default = "1.0")]
+    pub pheromone_init: f64,
+
+    #[envconfig(from = "PHEROMONE_STRENGTH", default = "1.0")]
+    pub pheromone_strength: f64,
+
+    #[envconfig(from = "EVAPORATION", default = "0.1")]
+    pub evaporation: f64,
 }
 
 impl Config {
@@ -88,8 +100,8 @@ impl Config {
         format!("data/{}.txt", self.data_number)
     }
 
-    pub fn image_path(&self) -> String {
-        format!("image-{}.png", self.data_number)
+    pub fn image_path(&self, fitness: usize) -> String {
+        format!("images/image-{}-f{}.png", self.data_number, fitness)
     }
 
     pub fn get_inertia(&self, iteration: usize) -> f64 {

@@ -294,19 +294,5 @@ impl PSO {
             global_best.get_fitness(),
             average,
         );
-        /*
-
-        for (i, particle) in self.swarm.particles.iter().enumerate() {
-            let mut positions: String = String::from("[ ");
-            let mut velocities: String = String::from("[ ");
-            println!("Particle {}: fitness: {}", i, particle.get_fitness());
-            for item in particle.items.iter() {
-                positions.push_str(&format!("{:.2} ", item.position));
-                velocities.push_str(&format!("{:.2} ", item.velocity));
-            }
-            println!("Position: {}]", positions);
-            println!("Velocity: {}]", velocities);
-        }
-        */
     }
 }

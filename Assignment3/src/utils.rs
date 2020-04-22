@@ -1,3 +1,5 @@
+use rand::distributions::WeightedIndex;
+use rand::prelude::*;
 use rand::seq::SliceRandom;
 use rand::Rng;
 
@@ -26,4 +28,10 @@ pub fn validate_velocity(velocity: f64) -> f64 {
     } else {
         velocity
     }
+}
+
+pub fn sample(weights: Vec<f64>) -> usize {
+    let mut rng = rand::thread_rng();
+    let dist = WeightedIndex::new(&weights).unwrap();
+    dist.sample(&mut rng)
 }

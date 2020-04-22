@@ -16,6 +16,8 @@ pub struct Job {
     pub number: usize,
 }
 
+pub struct Storage {}
+
 #[derive(Debug)]
 pub struct Problem {
     jobs: Vec<Job>,
