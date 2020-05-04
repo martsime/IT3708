@@ -3,10 +3,12 @@ use std::f64;
 use std::fmt;
 
 use lazysort::SortedBy;
+use rand::seq::SliceRandom;
 use rand::{self, Rng};
 
-use crate::config::CONFIG;
+use crate::config::Config;
 use crate::problem::{Model, Problem, Vehicle};
+use crate::simulation::{Chromosome, Gene};
 
 struct Savings {
     pub dim: usize,
@@ -53,7 +55,7 @@ impl fmt::Display for Route {
 }
 
 impl Route {
-    pub fn evaluate(&mut self, model: &Model, vehicle: &Vehicle) {
+    pub fn evaluate(&mut self, config: &Config, model: &Model, vehicle: &Vehicle) {
         // Cost already calculated
         if let Some(_) = self.cost {
             return;
@@ -66,7 +68,7 @@ impl Route {
             score += model.get_distance(current_node, *customer_number as usize);
             capacity_left -= model.get_demand(*customer_number as usize);
             if capacity_left < 0 {
-                score += CONFIG.infeasibility_penalty as f64;
+                score += config.infeasibility_penalty as f64;
             }
 
             current_node = *customer_number as usize;
@@ -101,13 +103,18 @@ fn single_customers_routes(customers: Vec<i32>) -> Vec<Route> {
         .collect()
 }
 
-fn evaluate_routes(routes: &mut Vec<Route>, model: &Model, vehicle: &Vehicle) {
+fn evaluate_routes(config: &Config, routes: &mut Vec<Route>, model: &Model, vehicle: &Vehicle) {
     for route in routes.iter_mut() {
-        route.evaluate(model, vehicle);
+        route.evaluate(config, model, vehicle);
     }
 }
 
-fn calculate_savings(routes: &Vec<Route>, model: &Model, vehicle: &Vehicle) -> Savings {
+fn calculate_savings(
+    config: &Config,
+    routes: &Vec<Route>,
+    model: &Model,
+    vehicle: &Vehicle,
+) -> Savings {
     let num_routes = routes.len();
     let mut savings = Savings::new(num_routes);
 
@@ -117,7 +124,7 @@ fn calculate_savings(routes: &Vec<Route>, model: &Model, vehicle: &Vehicle) -> S
                 continue;
             }
             let mut merged_route = merge_routes(r1, r2);
-            merged_route.evaluate(model, vehicle);
+            merged_route.evaluate(config, model, vehicle);
             let saving = r1.get_cost() + r2.get_cost() - merged_route.get_cost();
             savings.change(i1, i2, saving);
         }
@@ -153,7 +160,7 @@ fn remove_routes(routes: &mut Vec<Route>, index_one: usize, index_two: usize) {
     routes.remove(min_index);
 }
 
-fn sort_savings(savings: &Savings) -> Vec<(usize, f64)> {
+fn sort_savings(config: &Config, savings: &Savings) -> Vec<(usize, f64)> {
     let sorted_savings: Vec<(usize, f64)> = savings
         .vec
         .iter()
@@ -164,14 +171,14 @@ fn sort_savings(savings: &Savings) -> Vec<(usize, f64)> {
             x != y
         })
         .sorted_by(|a, b| b.1.partial_cmp(&a.1).unwrap())
-        .take(CONFIG.cws_bias)
+        .take(config.cws_bias)
         .collect();
 
     sorted_savings
 }
 
-fn select_routes_to_merge(sorted_savings: &Vec<(usize, f64)>) -> usize {
-    let cws_bias = cmp::min(CONFIG.cws_bias, sorted_savings.len());
+fn select_routes_to_merge(config: &Config, sorted_savings: &Vec<(usize, f64)>) -> usize {
+    let cws_bias = cmp::min(config.cws_bias, sorted_savings.len());
 
     let mut rng = rand::thread_rng();
     let index = rng.gen_range(0, cws_bias);
@@ -196,17 +203,17 @@ fn positive_saving_left(sorted_savings: &Vec<(usize, f64)>) -> bool {
     }
 }
 
-pub fn savings_init(model: &Model, problem: &Problem) -> Vec<Vec<i32>> {
+pub fn savings_init(config: &Config, model: &Model, problem: &Problem) -> Vec<Vec<i32>> {
     let mut initial_solution = Vec::new();
     let depot_map = problem.map_customers_to_depot();
     for (depot, customers) in depot_map.iter() {
         let customers = customers.iter().map(|c| c.number).collect();
         let mut routes = single_customers_routes(customers);
         let vehicle = problem.get_vehicle_for_depot(depot);
-        evaluate_routes(&mut routes, &model, &vehicle);
+        evaluate_routes(config, &mut routes, &model, &vehicle);
         loop {
-            let savings_matrix = calculate_savings(&routes, model, vehicle);
-            let sorted_savings = sort_savings(&savings_matrix);
+            let savings_matrix = calculate_savings(config, &routes, model, vehicle);
+            let sorted_savings = sort_savings(config, &savings_matrix);
 
             // Continue merging until we have enough vehicles and there is no saving
             let enough_vehicles = routes.len() <= problem.max_vehicles as usize;
@@ -214,12 +221,12 @@ pub fn savings_init(model: &Model, problem: &Problem) -> Vec<Vec<i32>> {
                 break;
             }
 
-            let i = select_routes_to_merge(&sorted_savings);
+            let i = select_routes_to_merge(config, &sorted_savings);
             let (i, j) = savings_matrix.get_indices(i);
             let route_one = &routes[i];
             let route_two = &routes[j];
             let mut new_route = merge_routes(route_one, route_two);
-            new_route.evaluate(model, vehicle);
+            new_route.evaluate(config, model, vehicle);
             remove_routes(&mut routes, i, j);
             routes.push(new_route);
         }
@@ -243,4 +250,20 @@ pub fn savings_init(model: &Model, problem: &Problem) -> Vec<Vec<i32>> {
     }
 
     initial_solution
+}
+
+pub fn random_init(model: &Model, problem: &Problem) -> Chromosome {
+    let mut genes: Vec<Gene> = Vec::new();
+
+    for i in 1..=problem.num_customers {
+        genes.push(Gene::Customer(i));
+    }
+    for i in 1..=problem.vehicles.len() {
+        genes.push(Gene::Depot(i as i32 + problem.num_customers));
+    }
+
+    let mut rng = rand::thread_rng();
+    genes.shuffle(&mut rng);
+
+    Chromosome { genes, score: None }
 }

@@ -3,7 +3,7 @@ use std::f64;
 use std::fmt;
 use std::i32;
 
-use crate::config::CONFIG;
+use crate::config::Config;
 use crate::problem::Model;
 use crate::solution::Solution;
 
@@ -229,9 +229,9 @@ pub struct Population {
 }
 
 impl Population {
-    pub fn new() -> Population {
+    pub fn new(config: &Config) -> Population {
         Population {
-            chromosomes: Vec::with_capacity(CONFIG.population_size),
+            chromosomes: Vec::with_capacity(config.population_size),
             scores: Vec::new(),
         }
     }
@@ -255,11 +255,11 @@ impl Population {
         self.scores = scores;
     }
 
-    fn parent_selection(&self) -> &Chromosome {
+    fn parent_selection(&self, config: &Config) -> &Chromosome {
         // Selects the best parent out of K random selected parents
         let mut rng = rand::thread_rng();
-        let indices: Vec<usize> = (0..CONFIG.parent_selection_k)
-            .map(|_| rng.gen_range(0, CONFIG.population_size) as usize)
+        let indices: Vec<usize> = (0..config.parent_selection_k)
+            .map(|_| rng.gen_range(0, config.population_size) as usize)
             .collect();
 
         let mut best_parent_score: f64 = f64::MAX;
@@ -283,25 +283,25 @@ impl Population {
         }
     }
 
-    pub fn evolve(&self) -> Population {
+    pub fn evolve(&self, config: &Config) -> Population {
         let mut new_chromosomes: Vec<Chromosome> = Vec::with_capacity(self.chromosomes.len());
 
-        for i in 0..CONFIG.elite_count {
+        for i in 0..config.elite_count {
             let elite_chromosome = &self.chromosomes[self.scores[i].0];
             new_chromosomes.push(elite_chromosome.clone());
         }
 
-        let iterations = (self.chromosomes.len() - CONFIG.elite_count) / 2;
+        let iterations = (self.chromosomes.len() - config.elite_count) / 2;
 
         new_chromosomes.par_extend((0..iterations).into_par_iter().flat_map(|_| {
             let mut rng = rand::thread_rng();
 
-            let parent_one: &Chromosome = self.parent_selection();
-            let parent_two: &Chromosome = self.parent_selection();
+            let parent_one: &Chromosome = self.parent_selection(config);
+            let parent_two: &Chromosome = self.parent_selection(config);
 
             let crossover: f64 = rng.gen();
             let (child_one, child_two);
-            if crossover < CONFIG.crossover_rate {
+            if crossover < config.crossover_rate {
                 let (a, b) = parent_one.order_one_crossover(parent_two);
                 child_one = a;
                 child_two = b;
@@ -315,8 +315,8 @@ impl Population {
             // Remove vehicle mutation
             for i in 0..children.len() {
                 let chance: f64 = rng.gen();
-                let times: usize = rng.gen_range(0, CONFIG.vehicle_remove_mut_max);
-                if chance < CONFIG.vehicle_remove_mut_rate {
+                let times: usize = rng.gen_range(0, config.vehicle_remove_mut_max);
+                if chance < config.vehicle_remove_mut_rate {
                     for _ in 0..times {
                         children[i] = children[i].remove_vehicle_mutation();
                     }
@@ -326,8 +326,8 @@ impl Population {
             // Single swap mutation
             for i in 0..children.len() {
                 let chance: f64 = rng.gen();
-                let times: usize = rng.gen_range(0, CONFIG.single_swap_mut_max);
-                if chance < CONFIG.single_swap_mut_rate {
+                let times: usize = rng.gen_range(0, config.single_swap_mut_max);
+                if chance < config.single_swap_mut_rate {
                     for _ in 0..times {
                         children[i] = children[i].single_swap_mutation();
                     }
@@ -337,7 +337,7 @@ impl Population {
             children
         }));
 
-        let mut new_population = Population::new();
+        let mut new_population = Population::new(config);
         new_population.chromosomes = new_chromosomes;
         new_population
     }
@@ -386,14 +386,14 @@ pub struct Simulation {
 }
 
 impl Simulation {
-    pub fn new() -> Simulation {
+    pub fn new(config: &Config) -> Simulation {
         Simulation {
-            population: Population::new(),
+            population: Population::new(config),
             generation: 1,
         }
     }
-    pub fn run(&mut self, model: &Model) {
-        let new_population = self.population.evolve();
+    pub fn run(&mut self, model: &Model, config: &Config) {
+        let new_population = self.population.evolve(config);
         self.population = new_population;
         self.population.evaluate(model);
 

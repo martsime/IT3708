@@ -5,7 +5,7 @@ use std::i32;
 
 use rayon::prelude::*;
 
-use crate::config::CONFIG;
+use crate::config::Config;
 use crate::heuristic;
 use crate::parser;
 use crate::simulation::{Chromosome, Encode, Simulation};
@@ -94,7 +94,8 @@ impl Clone for Customer {
 }
 
 impl Problem {
-    pub fn new(path: String) -> Problem {
+    pub fn new(config: &Config) -> Problem {
+        let path = config.problem_path.clone();
         let lines = parser::load(&path);
 
         // Parse problem global settings
@@ -182,7 +183,7 @@ impl Problem {
             depots,
             customers,
             vehicles,
-            simulation: Simulation::new(),
+            simulation: Simulation::new(config),
             optimal_solution: None,
             model: None,
         };
@@ -244,24 +245,9 @@ impl Problem {
     }
 
     pub fn get_solution(&self) -> Solution {
-        let mut solution: Solution;
-        if CONFIG.show_solution {
-            solution = OptimalSolution::new(CONFIG.solution_path.clone()).get_solution(&self);
-        } else if CONFIG.show_optimal_solution {
-            solution =
-                OptimalSolution::new(CONFIG.optimal_solution_path.clone()).get_solution(&self);
-        } else {
-            panic!("No solution set!");
-        }
-
-        let model = self.model.as_ref().unwrap();
-        solution.evaluate(model);
-
-        println!(
-            "Generation {}, Score: {}",
-            self.simulation.generation,
-            solution.score.unwrap(),
-        );
+        let mut solution = self.simulation.get_best_solution();
+        // let model = self.model.as_ref().unwrap();
+        // solution.evaluate(model);
 
         for route in solution.routes.iter_mut() {
             for stop in route.iter_mut() {
@@ -365,17 +351,18 @@ impl Problem {
         return (min_x, min_y, max_x, max_y);
     }
 
-    pub fn generate_population(&mut self) {
-        if CONFIG.verbose {
+    pub fn generate_population(&mut self, config: &Config) {
+        if config.verbose {
             println!("Generating population");
         }
         let model = self.model.as_ref().unwrap();
-        while self.simulation.population.size() < CONFIG.population_size {
-            let new_chromosomes: Vec<Chromosome> = (0..CONFIG.population_gen_step)
+        while self.simulation.population.size() < config.population_size {
+            let new_chromosomes: Vec<Chromosome> = (0..config.population_gen_step)
                 .into_par_iter()
                 .map(|_| {
-                    let route = heuristic::savings_init(&model, &self);
+                    let route = heuristic::savings_init(config, &model, &self);
                     Solution::new(route).encode()
+                    // heuristic::random_init(&model, &self)
                 })
                 .collect();
 
@@ -384,25 +371,26 @@ impl Problem {
                 .chromosomes
                 .par_extend(new_chromosomes);
 
-            if CONFIG.verbose {
+            if config.verbose {
                 let generated = self.simulation.population.size();
                 println!(
                     "Generated {} of {} individuals",
-                    generated, CONFIG.population_size
+                    generated, config.population_size
                 );
             }
         }
         self.simulation.evaluate(model);
     }
 
-    pub fn simulate(&mut self) -> Solution {
+    pub fn simulate(&mut self, config: &Config) -> Solution {
         let model = self.model.as_ref().unwrap();
         let mut solution: Solution = self.simulation.get_best_solution();
-        for _ in 0..CONFIG.draw_rate {
-            self.simulation.run(model);
+        for _ in 0..config.draw_rate {
+            self.simulation.run(model, config);
             solution = self.simulation.get_best_solution();
         }
-
+        solution
+        /*
         println!(
             "Generation {}, Score: {}",
             self.simulation.generation,
@@ -437,6 +425,8 @@ impl Problem {
         }
 
         solution
+
+        */
     }
 
     pub fn map_customers_to_depot(&self) -> HashMap<&Depot, Vec<Customer>> {

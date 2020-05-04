@@ -5,7 +5,7 @@ use std::io::Write as wr;
 
 use std::collections::HashMap;
 
-use crate::config::CONFIG;
+use crate::config::Config;
 use crate::parser;
 use crate::problem::{Model, Problem};
 use crate::simulation::{Chromosome, Encode, Gene};
@@ -26,6 +26,14 @@ impl Solution {
     pub fn evaluate(&mut self, model: &Model) {
         let mut chromosome = self.encode();
         self.score = Some(chromosome.evaluate(model));
+    }
+
+    pub fn score(&self) -> f64 {
+        if let Some(score) = self.score {
+            score
+        } else {
+            panic!("Solution not evaluated!");
+        }
     }
 
     fn evaluate_route(&self, route: &Vec<i32>, model: &Model) -> (i32, f64) {
@@ -97,11 +105,11 @@ impl Solution {
         output
     }
 
-    pub fn write_to_file(&mut self, problem: &Problem, model: &Model) {
+    pub fn write_to_file(&mut self, config: &Config, problem: &Problem, model: &Model) {
         let content = self.format_output(problem, model);
         let content = content.trim();
         println!("{}", content);
-        let file_path = CONFIG.solution_path.clone();
+        let file_path = config.solution_path.clone();
         let mut file: File = match OpenOptions::new()
             .write(true)
             .create(true)
@@ -110,7 +118,7 @@ impl Solution {
         {
             Ok(file) => file,
             Err(_) => {
-                panic!("Failed to open file {}", CONFIG.solution_path);
+                panic!("Failed to open file {}", config.solution_path);
             }
         };
         match file.write_all(content.as_bytes()) {

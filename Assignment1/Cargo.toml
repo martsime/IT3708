@@ -12,6 +12,8 @@ path = "src/lib.rs"
 
 [dependencies]
 genetic = { path = "genetic" }
+envconfig_derive = "0.6.0"
+envconfig = "0.6.0"
 
 [dependencies.pyo3]
 version = "= 0.8.5"

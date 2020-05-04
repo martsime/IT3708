@@ -64,6 +64,12 @@ pub struct Config {
     pub cws_bias: usize,
 }
 
+impl Config {
+    pub fn update(&mut self, crossover: f64) {
+        self.crossover_rate = crossover;
+    }
+}
+
 lazy_static! {
     pub static ref CONFIG: Config = Config::init().unwrap();
 }

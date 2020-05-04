@@ -53,6 +53,7 @@ def worker_process(q):
     old_solution = None
     for _ in range(0, GENERATIONS - 1):
         solution = program.simulate()
+        print(solution)
         if solution != old_solution:
             q.put({
                 MessageType.ROUTES: solution,
